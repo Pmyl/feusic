@@ -1,14 +1,15 @@
 #![feature(fn_traits)]
 
-mod phasic_player;
-mod source_repeat_n;
+mod core;
+mod ui;
 
-use phasic_player::{FesicMusicLoader, Phasic, PhasicPlayer};
+use core::feusic::loader::FesicMusicLoader;
+use core::feusic::Phasic;
+use core::player::PhasicPlayer;
 use serde::Deserialize;
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::{self, Write};
-use std::time::Duration;
 
 #[derive(Deserialize)]
 struct PlaylistConfig {
@@ -60,24 +61,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("Playlist of {}", playlist.len());
 
-    // let playlist_content = fs::read_to_string(folder_path).expect("Failed to read playlist.toml");
-
-    // let playlist: PlaylistConfig =
-    //     toml::from_str(&playlist_content).expect("Failed to parse playlist.toml");
-
-    // let playlist: Vec<Phasic> = playlist
-    //     .phasic
-    //     .into_iter()
-    //     .map(
-    //         |group| group.into(), /*Phasic {
-    //                                   name: group.name,
-    //                                   audios_paths: group.files,
-    //                                   timing: PhasicTiming::try_from(group.timing.as_str()).expect("Invalid timing"),
-    //                                   repeat: group.repeat,
-    //                               }*/
-    //     )
-    //     .collect();
-
     let player = match PhasicPlayer::new(playlist) {
         Ok(player) => {
             println!("Music player initialized successfully.");
@@ -90,27 +73,29 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     player.play();
 
-    loop {
-        println!("Commands: pause, resume, stop, loop, crossfade, next, exit");
-        io::stdout().flush()?;
+    ui::run_ui(&player)
 
-        let mut command = String::new();
-        io::stdin().read_line(&mut command)?;
-        let mut commands = command.trim().split(" ").collect::<Vec<_>>();
-        let command = commands.remove(0);
+    // loop {
+    //     println!("Commands: pause, resume, stop, loop, crossfade, next, exit");
+    //     io::stdout().flush()?;
 
-        println!("Command received: {}", command);
+    //     let mut command = String::new();
+    //     io::stdin().read_line(&mut command)?;
+    //     let mut commands = command.trim().split(" ").collect::<Vec<_>>();
+    //     let command = commands.remove(0);
 
-        match command {
-            "pause" => player.pause(),
-            "resume" => player.resume(),
-            "stop" => player.stop(),
-            "next" => player.next(),
-            "crossfade" => player.crossfade(Duration::from_secs(1)),
-            "exit" => break,
-            _ => println!("Unknown command"),
-        }
-    }
+    //     println!("Command received: {}", command);
 
-    Ok(())
+    //     match command {
+    //         "pause" => player.pause(),
+    //         "resume" => player.resume(),
+    //         "stop" => player.stop(),
+    //         "next" => player.next(),
+    //         "crossfade" => player.crossfade(Duration::from_secs(1)),
+    //         "exit" => break,
+    //         _ => println!("Unknown command"),
+    //     }
+    // }
+
+    // Ok(())
 }
