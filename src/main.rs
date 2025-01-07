@@ -6,10 +6,8 @@ mod ui;
 use core::feusic::loader::FesicMusicLoader;
 use core::feusic::Feusic;
 use core::player::FeusicPlayer;
-use serde::Deserialize;
 use std::error::Error;
 use std::fs::{self, File};
-use std::io::{self, Write};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();

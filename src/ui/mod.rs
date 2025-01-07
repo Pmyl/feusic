@@ -6,21 +6,15 @@ use glutin::{
     display::{GetGlDisplay, GlDisplay},
     surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurface},
 };
-use imgui::Context;
 use imgui_glow_renderer::glow::HasContext;
 use imgui_winit_support::winit::{
     dpi::LogicalSize,
-    event::{Event, WindowEvent},
     event_loop::EventLoop,
-    raw_window_handle::{HasDisplayHandle, HasWindowHandle},
+    raw_window_handle::HasWindowHandle,
     window::{Window, WindowAttributes},
 };
-use imgui_winit_support::{HiDpiMode, WinitPlatform};
-use serde::Deserialize;
+use imgui_winit_support::WinitPlatform;
 use std::error::Error;
-use std::fs::{self, File};
-use std::io::{self, Write};
-use std::time::Duration;
 
 use crate::core::{feusic::loader::MusicLoader, player::FeusicPlayerController};
 

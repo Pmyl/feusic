@@ -1,21 +1,13 @@
 mod timer;
 
 use cpal::traits::HostTrait;
-use rand::{thread_rng, Rng};
-use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
-use serde::Deserialize;
+use rodio::{OutputStream, OutputStreamHandle, Sink};
 use std::error::Error;
-use std::fs::File;
-use std::io::{BufReader, Cursor, Read};
-use std::iter::Peekable;
-use std::path::PathBuf;
-use std::str::Chars;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::{self};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use timer::FeusicTimer;
-use zip::ZipArchive;
 
 use super::feusic::loader::MusicLoader;
 use super::feusic::Feusic;
