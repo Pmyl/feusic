@@ -104,11 +104,11 @@ impl<M: MusicLoader> FeusicPlayer<M> {
             .default_output_device()
             .ok_or("No default output device")?;
 
-        let (action_sender, action_receiver) = mpsc::channel();
-
         let Ok((_stream, stream_handle)) = OutputStream::try_from_device(&device) else {
             return Err("Error finding output device".into());
         };
+
+        let (action_sender, action_receiver) = mpsc::channel();
 
         let player = Self {
             sinks: vec![],
@@ -123,16 +123,14 @@ impl<M: MusicLoader> FeusicPlayer<M> {
             music_duration: Duration::from_secs(0),
         };
 
-        let player_arc = Arc::new(Mutex::new(player));
+        let player = Arc::new(Mutex::new(player));
 
-        run(player_arc.clone(), action_receiver);
+        run(player.clone(), action_receiver);
 
-        let controller = FeusicPlayerController {
+        Ok(FeusicPlayerController {
             action_sender,
-            player: player_arc,
-        };
-
-        Ok(controller)
+            player,
+        })
     }
 
     fn play_feusic(&mut self, feusic_index: usize) -> Result<(), Box<dyn Error>> {
