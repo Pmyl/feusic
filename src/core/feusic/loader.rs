@@ -8,7 +8,7 @@ use std::{
 use rodio::{Decoder, Sink, Source};
 use zip::ZipArchive;
 
-pub trait MusicLoader {
+pub trait MusicLoader: Send + Sync + 'static {
     fn load_to_sink(&self, sink: &Sink) -> Result<Duration, Box<dyn Error>>;
 }
 

@@ -22,13 +22,13 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::time::Duration;
 
-use crate::core::player::PhasicPlayerController;
+use crate::core::{feusic::loader::MusicLoader, player::FeusicPlayerController};
 
 mod view;
 
 const TITLE: &str = "Hello, imgui-rs!";
 
-pub fn run_ui(player: &PhasicPlayerController) -> Result<(), Box<dyn Error>> {
+pub fn run_ui<M: MusicLoader>(player: &FeusicPlayerController<M>) -> Result<(), Box<dyn Error>> {
     let (event_loop, window, surface, context) = create_window();
     let (mut winit_platform, mut imgui_context) = imgui_init(&window);
 
@@ -61,7 +61,7 @@ pub fn run_ui(player: &PhasicPlayerController) -> Result<(), Box<dyn Error>> {
             unsafe { ig_renderer.gl_context().clear(glow::COLOR_BUFFER_BIT) };
 
             let ui = imgui_context.frame();
-            view::render(&ui, &player).expect("error rendering window");
+            view::render(&ui, player).expect("error rendering window");
 
             winit_platform.prepare_render(ui, &window);
             let draw_data = imgui_context.render();

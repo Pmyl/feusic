@@ -4,8 +4,8 @@ mod core;
 mod ui;
 
 use core::feusic::loader::FesicMusicLoader;
-use core::feusic::Phasic;
-use core::player::PhasicPlayer;
+use core::feusic::Feusic;
+use core::player::FeusicPlayer;
 use serde::Deserialize;
 use std::error::Error;
 use std::fs::{self, File};
@@ -13,11 +13,12 @@ use std::io::{self, Write};
 
 #[derive(Deserialize)]
 struct PlaylistConfig {
-    phasic: Vec<PhasicConfig>,
+    // TODO: change this to feusic!
+    phasic: Vec<FeusicConfig>,
 }
 
 #[derive(Deserialize)]
-struct PhasicConfig {
+struct FeusicConfig {
     name: String,
     files: Vec<String>,
     timing: String,
@@ -33,7 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("Loading files from folder {}", folder_path);
 
-    let playlist: Vec<Phasic<FesicMusicLoader>> = files
+    let playlist: Vec<Feusic<FesicMusicLoader>> = files
         .filter_map(|file| {
             file.inspect_err(|e| eprintln!("Skipping file because {}", e))
                 .ok()
@@ -56,12 +57,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .ok()
                 .map(|f| (file.path(), f))
         })
-        .map(|(file_name, file)| Phasic::from_fesic_file(&file_name, &file))
+        .map(|(file_name, file)| Feusic::from_fesic_file(&file_name, &file))
         .collect::<Result<Vec<_>, _>>()?;
 
     println!("Playlist of {}", playlist.len());
 
-    let player = match PhasicPlayer::new(playlist) {
+    let player = match FeusicPlayer::new(playlist) {
         Ok(player) => {
             println!("Music player initialized successfully.");
             player

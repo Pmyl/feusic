@@ -7,7 +7,7 @@ use rand::{thread_rng, Rng};
 
 use crate::core::{feusic::Next, player::PlayerAction};
 
-pub struct PhasicTimer {
+pub struct FeusicTimer {
     timings: Vec<Vec<Next>>,
     timing_index: usize,
     case_index: usize,
@@ -18,7 +18,7 @@ pub struct PhasicTimer {
 
 const CROSSFADE_TIME_FIRE_EMBLEM: Duration = Duration::from_millis(1000);
 
-impl PhasicTimer {
+impl FeusicTimer {
     pub fn new(sender: Sender<PlayerAction>, start: usize, timing: Vec<Vec<Next>>) -> Self {
         println!("Start timer");
 

@@ -6,17 +6,17 @@ use serde::Deserialize;
 pub mod loader;
 
 #[derive(Debug)]
-pub struct Phasic<MusicLoader> {
+pub struct Feusic<M> {
     pub name: String,
-    pub musics: Vec<Music<MusicLoader>>,
+    pub musics: Vec<Music<M>>,
     pub first_music: usize,
     pub repeat: usize,
 }
 
 #[derive(Debug)]
-pub struct Music<MusicLoader> {
+pub struct Music<M> {
     pub name: String,
-    pub loader: MusicLoader,
+    pub loader: M,
     pub next_choices: Vec<Next>,
 }
 
@@ -33,7 +33,7 @@ struct FesicConfig {
     repeat: usize,
 }
 
-impl Phasic<FesicMusicLoader> {
+impl Feusic<FesicMusicLoader> {
     pub fn from_fesic_file(file_path: &PathBuf, file: &File) -> Result<Self, Box<dyn Error>> {
         println!("Parsing {:?}", file_path);
         let mut zip = zip::ZipArchive::new(file)?;
