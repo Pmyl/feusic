@@ -17,13 +17,25 @@ pub(super) fn render<M: MusicLoader>(
             ui.separator();
             ui.text("Controls");
             ui.separator();
-            let pressed = ui.button("Next");
-            if pressed {
+
+            if ui.button("Next") {
                 player.next();
             }
-            let pressed = ui.button("Crossfade");
-            if pressed {
+
+            if ui.button("Crossfade") {
                 player.crossfade(Duration::from_millis(1000));
+            }
+
+            if ui.button("Pause") {
+                player.pause();
+            }
+
+            if ui.button("Resume") {
+                player.resume();
+            }
+
+            if ui.button("Stop") {
+                player.stop();
             }
         });
 

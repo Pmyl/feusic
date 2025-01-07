@@ -43,7 +43,10 @@ pub struct FeusicPlayer<M> {
     _stream: SendOutputStream,
 }
 
-struct SendOutputStream(OutputStream);
+struct SendOutputStream(#[allow(unused)] OutputStream);
+// OutputStream can't be Send only because Android limitation
+// I don't target Android so this is fine
+// Also the limitation should probably be lifted https://github.com/RustAudio/cpal/issues/818
 unsafe impl Send for SendOutputStream {}
 
 #[derive(Debug)]
@@ -342,9 +345,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
 fn run<M: MusicLoader>(player: Arc<Mutex<FeusicPlayer<M>>>, receiver: Receiver<PlayerAction>) {
     thread::spawn(move || loop {
         for action in receiver.try_iter() {
-            println!("Received {:?} locking", action);
             let mut player = player.lock().unwrap();
-            println!("Locked");
             match action {
                 PlayerAction::Play => {
                     if let Err(e) = player.play() {

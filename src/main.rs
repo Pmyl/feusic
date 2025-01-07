@@ -11,20 +11,6 @@ use std::error::Error;
 use std::fs::{self, File};
 use std::io::{self, Write};
 
-#[derive(Deserialize)]
-struct PlaylistConfig {
-    // TODO: change this to feusic!
-    phasic: Vec<FeusicConfig>,
-}
-
-#[derive(Deserialize)]
-struct FeusicConfig {
-    name: String,
-    files: Vec<String>,
-    timing: String,
-    repeat: usize,
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
     let folder_path = &args[1];
