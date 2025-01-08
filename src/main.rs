@@ -3,7 +3,7 @@
 mod core;
 mod ui;
 
-use core::feusic::loader::FesicMusicLoader;
+use core::feusic::loader::FeusicMusicLoader;
 use core::feusic::Feusic;
 use core::player::FeusicPlayer;
 use std::error::Error;
@@ -18,15 +18,17 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("Loading files from folder {}", folder_path);
 
-    let playlist: Vec<Feusic<FesicMusicLoader>> = files
+    let playlist: Vec<Feusic<FeusicMusicLoader>> = files
         .filter_map(|file| {
             file.inspect_err(|e| eprintln!("Skipping file because {}", e))
                 .ok()
         })
         .inspect(|file| println!("Checking file {:?}", file.path()))
         .filter_map(|file| {
-            if let Some(ext) = file.path().extension() {
-                if ext == "fesic" {
+            let path = file.path();
+
+            if let Some(ext) = path.extension() {
+                if ext == "feusic" {
                     Some(file)
                 } else {
                     None
@@ -35,13 +37,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                 None
             }
         })
-        .filter_map(|file| {
-            File::open(file.path())
-                .inspect_err(|e| eprintln!("Skipping opening file because {}", e))
-                .ok()
-                .map(|f| (file.path(), f))
+        .filter_map(|entry| {
+            let path = entry.path();
+
+            if path.is_dir() {
+                Some(Feusic::from_feusic_folder(&path))
+            } else {
+                File::open(&path)
+                    .inspect_err(|e| eprintln!("Skipping opening file because {}", e))
+                    .ok()
+                    .map(|file| Feusic::from_feusic_zip_file(&path, &file))
+            }
         })
-        .map(|(file_name, file)| Feusic::from_fesic_file(&file_name, &file))
         .collect::<Result<Vec<_>, _>>()?;
 
     println!("Playlist of {}", playlist.len());

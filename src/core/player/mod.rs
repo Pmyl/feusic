@@ -1,7 +1,9 @@
+mod source_repeat_n;
 mod timer;
 
 use cpal::traits::HostTrait;
 use rodio::{OutputStream, OutputStreamHandle, Sink};
+use source_repeat_n::RepeatN;
 use std::error::Error;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -55,44 +57,6 @@ enum PlayerAction {
 pub struct FeusicPlayerController<M> {
     action_sender: Sender<PlayerAction>,
     player: Arc<Mutex<FeusicPlayer<M>>>,
-}
-
-impl<M: MusicLoader> FeusicPlayerController<M> {
-    pub fn play(&self) {
-        self.action_sender.send(PlayerAction::Play).unwrap();
-    }
-
-    pub fn pause(&self) {
-        self.action_sender.send(PlayerAction::Pause).unwrap();
-    }
-
-    pub fn resume(&self) {
-        self.action_sender.send(PlayerAction::Resume).unwrap();
-    }
-
-    pub fn stop(&self) {
-        self.action_sender.send(PlayerAction::Stop).unwrap();
-    }
-
-    pub fn next(&self) {
-        self.action_sender.send(PlayerAction::Next).unwrap();
-    }
-
-    pub fn crossfade(&self, duration: Duration) {
-        self.action_sender
-            .send(PlayerAction::CrossfadeNext(duration))
-            .unwrap();
-    }
-
-    pub fn music_position(&self) -> Duration {
-        let player = self.player.lock().unwrap();
-        player.music_position()
-    }
-
-    pub fn music_duration(&self) -> Duration {
-        let player = self.player.lock().unwrap();
-        player.music_duration()
-    }
 }
 
 impl<M: MusicLoader> FeusicPlayer<M> {
@@ -150,14 +114,15 @@ impl<M: MusicLoader> FeusicPlayer<M> {
         let mut sinks = Vec::new();
         for music in &self.playlist[feusic_index].musics {
             let sink = Sink::try_new(&self.stream_handle)?;
-            self.music_duration = music.loader.load_to_sink(&sink)?;
-            // let repeating_source = RepeatN::new(source, feusic.repeat, {
-            //     let sender = self.action_sender.clone();
-            //     move || {
-            //         sender.send(PlayerAction::Next).unwrap();
-            //     }
-            // });
-            // sink.append(repeating_source);
+            let sender = self.action_sender.clone();
+            let loaded_music = music.loader.load()?;
+
+            self.music_duration = loaded_music.music_duration;
+            let repeating_source = RepeatN::new(loaded_music.source, feusic.repeat, move || {
+                sender.send(PlayerAction::Next).unwrap();
+            });
+
+            sink.append(repeating_source);
             sink.pause();
             sinks.push(Arc::new(sink));
             println!("Loaded audio file: {}", music.name);
@@ -333,49 +298,92 @@ impl<M: MusicLoader> FeusicPlayer<M> {
 }
 
 fn run<M: MusicLoader>(player: Arc<Mutex<FeusicPlayer<M>>>, receiver: Receiver<PlayerAction>) {
-    thread::spawn(move || loop {
-        for action in receiver.try_iter() {
-            let mut player = player.lock().unwrap();
-            match action {
-                PlayerAction::Play => {
-                    if let Err(e) = player.play() {
-                        eprintln!("Error playing: {}", e);
+    thread::spawn({
+        let player = player.clone();
+        move || loop {
+            for action in receiver.try_iter() {
+                let mut player = player.lock().unwrap();
+                match action {
+                    PlayerAction::Play => {
+                        if let Err(e) = player.play() {
+                            eprintln!("Error playing: {}", e);
+                        }
+                    }
+                    PlayerAction::Pause => {
+                        player.pause();
+                    }
+                    PlayerAction::Resume => {
+                        if let Err(e) = player.resume() {
+                            eprintln!("Error resuming: {}", e);
+                        }
+                    }
+                    PlayerAction::Stop => {
+                        player.stop();
+                    }
+                    PlayerAction::Next => {
+                        if let Err(e) = player.next() {
+                            eprintln!("Error playing next: {}", e);
+                        }
+                    }
+                    PlayerAction::CrossfadeNext(duration) => {
+                        if let Err(e) = player.crossfade_next(duration) {
+                            eprintln!("Error crossfading next: {}", e);
+                        }
+                    }
+                    PlayerAction::CrossfadeWith(duration, index) => {
+                        if let Err(e) = player.crossfade_with(duration, index) {
+                            eprintln!("Error crossfading index {}: {}", index, e);
+                        }
                     }
                 }
-                PlayerAction::Pause => {
-                    player.pause();
-                }
-                PlayerAction::Resume => {
-                    if let Err(e) = player.resume() {
-                        eprintln!("Error resuming: {}", e);
-                    }
-                }
-                PlayerAction::Stop => {
-                    player.stop();
-                }
-                PlayerAction::Next => {
-                    if let Err(e) = player.next() {
-                        eprintln!("Error playing next: {}", e);
-                    }
-                }
-                PlayerAction::CrossfadeNext(duration) => {
-                    if let Err(e) = player.crossfade_next(duration) {
-                        eprintln!("Error crossfading next: {}", e);
-                    }
-                }
-                PlayerAction::CrossfadeWith(duration, index) => {
-                    if let Err(e) = player.crossfade_with(duration, index) {
-                        eprintln!("Error crossfading index {}: {}", index, e);
-                    }
-                }
+                drop(player);
             }
-            drop(player);
         }
+    });
 
+    thread::spawn(move || loop {
         let mut player = player.lock().unwrap();
         player.timer.tick();
         drop(player);
 
         thread::sleep(Duration::from_millis(1000));
     });
+}
+
+impl<M: MusicLoader> FeusicPlayerController<M> {
+    pub fn play(&self) {
+        self.action_sender.send(PlayerAction::Play).unwrap();
+    }
+
+    pub fn pause(&self) {
+        self.action_sender.send(PlayerAction::Pause).unwrap();
+    }
+
+    pub fn resume(&self) {
+        self.action_sender.send(PlayerAction::Resume).unwrap();
+    }
+
+    pub fn stop(&self) {
+        self.action_sender.send(PlayerAction::Stop).unwrap();
+    }
+
+    pub fn next(&self) {
+        self.action_sender.send(PlayerAction::Next).unwrap();
+    }
+
+    pub fn crossfade(&self, duration: Duration) {
+        self.action_sender
+            .send(PlayerAction::CrossfadeNext(duration))
+            .unwrap();
+    }
+
+    pub fn music_position(&self) -> Duration {
+        let player = self.player.lock().unwrap();
+        player.music_position()
+    }
+
+    pub fn music_duration(&self) -> Duration {
+        let player = self.player.lock().unwrap();
+        player.music_duration()
+    }
 }
