@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     player.play();
 
-    ui::run_ui(&player)
+    ui::egui::run_ui(player).into()
 
     // loop {
     //     println!("Commands: pause, resume, stop, loop, crossfade, next, exit");
