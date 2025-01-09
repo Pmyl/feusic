@@ -11,8 +11,15 @@ pub(super) fn render<M: MusicLoader>(
     egui::Window::new("Hello world")
         .open(&mut true)
         .show(&ui.ctx(), |ui| {
-            ui.label(format!("Duration: {}", player.music_duration().as_secs()));
-            ui.label(format!("Position: {}", player.music_position().as_secs()));
+            let duration = player.music_duration();
+            let position = player.music_position();
+
+            let mut relative_position = position.as_millis() as f32 / duration.as_millis() as f32;
+
+            ui.add(egui::widgets::Slider::new(&mut relative_position, 0.0..=1.0).show_value(false));
+
+            ui.label(format!("Duration: {}", duration.as_secs()));
+            ui.label(format!("Position: {}", position.as_secs()));
             ui.separator();
             ui.label("Controls");
             ui.separator();

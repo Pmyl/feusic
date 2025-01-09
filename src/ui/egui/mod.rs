@@ -15,6 +15,7 @@ impl<M: MusicLoader> eframe::App for FeusicEguiApp<M> {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        ctx.request_repaint();
         ctx.set_pixels_per_point(3.0);
         egui::CentralPanel::default().show(ctx, |ui| -> Result<(), Box<dyn Error>> {
             view::render(&ui, &self.player).into()

@@ -24,18 +24,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .ok()
         })
         .inspect(|file| println!("Checking file {:?}", file.path()))
-        .filter_map(|file| {
-            let path = file.path();
-
-            if let Some(ext) = path.extension() {
-                if ext == "feusic" {
-                    Some(file)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+        .filter_map(|file| match file.path().extension() {
+            Some(ext) if ext == "feusic" => Some(file),
+            _ => None,
         })
         .filter_map(|entry| {
             let path = entry.path();
@@ -66,28 +57,5 @@ fn main() -> Result<(), Box<dyn Error>> {
     player.play();
 
     ui::egui::run_ui(player).into()
-
-    // loop {
-    //     println!("Commands: pause, resume, stop, loop, crossfade, next, exit");
-    //     io::stdout().flush()?;
-
-    //     let mut command = String::new();
-    //     io::stdin().read_line(&mut command)?;
-    //     let mut commands = command.trim().split(" ").collect::<Vec<_>>();
-    //     let command = commands.remove(0);
-
-    //     println!("Command received: {}", command);
-
-    //     match command {
-    //         "pause" => player.pause(),
-    //         "resume" => player.resume(),
-    //         "stop" => player.stop(),
-    //         "next" => player.next(),
-    //         "crossfade" => player.crossfade(Duration::from_secs(1)),
-    //         "exit" => break,
-    //         _ => println!("Unknown command"),
-    //     }
-    // }
-
-    // Ok(())
+    // ui::terminal::run_ui(player).into()
 }
