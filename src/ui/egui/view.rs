@@ -1,6 +1,6 @@
 use std::{error::Error, time::Duration};
 
-use egui::Ui;
+use egui::{style::HandleShape, Ui};
 
 use crate::core::{feusic::loader::MusicLoader, player::FeusicPlayerController};
 
@@ -16,33 +16,53 @@ pub(super) fn render<M: MusicLoader>(
 
             let mut relative_position = position.as_millis() as f32 / duration.as_millis() as f32;
 
-            ui.add(egui::widgets::Slider::new(&mut relative_position, 0.0..=1.0).show_value(false));
-
-            ui.label(format!("Duration: {}", duration.as_secs()));
-            ui.label(format!("Position: {}", position.as_secs()));
+            ui.label(format!("Duration: {}", duration.as_millis()));
+            ui.label(format!("Position: {}", position.as_millis()));
             ui.separator();
             ui.label("Controls");
             ui.separator();
-
-            if ui.button("Next").clicked() {
-                player.next();
-            }
 
             if ui.button("Crossfade").clicked() {
                 player.crossfade(Duration::from_millis(1000));
             }
 
-            if ui.button("Pause").clicked() {
-                player.pause();
+            if ui.button("Seek to 1 sec left").clicked() {
+                player.seek_to_one_second_left();
             }
 
-            if ui.button("Resume").clicked() {
-                player.resume();
-            }
+            ui.vertical_centered(|ui| {
+                ui.horizontal(|ui| {
+                    ui.add_enabled_ui(false, |ui| ui.button("<<"));
+                    ui.add_enabled_ui(false, |ui| ui.button("<"));
 
-            if ui.button("Stop").clicked() {
-                player.stop();
-            }
+                    if player.paused() {
+                        if ui.button("|>").clicked() {
+                            player.resume();
+                        }
+                    } else {
+                        if ui.button("||").clicked() {
+                            player.pause();
+                        }
+                    }
+
+                    if ui.button(">").clicked() {
+                        player.next_repeat();
+                    }
+
+                    if ui.button(">>").clicked() {
+                        player.next();
+                    }
+                });
+            });
+
+            ui.horizontal(|ui| {
+                ui.spacing_mut().slider_width = ui.available_width();
+                ui.add(
+                    egui::widgets::Slider::new(&mut relative_position, 0.0..=1.0)
+                        .handle_shape(HandleShape::Rect { aspect_ratio: 0.3 })
+                        .show_value(false),
+                );
+            });
         });
 
     Ok(())

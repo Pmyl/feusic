@@ -2,28 +2,25 @@ use std::{
     error::Error,
     fs::File,
     io::{BufReader, Cursor, Read, Seek},
-    time::Duration,
 };
-
-use rodio::{Decoder, Source};
 use zip::ZipArchive;
 
 pub trait MusicLoader: Send + Sync + 'static {
-    type Reader: Read + Seek + Send;
+    type Reader: Read + Seek + Sync + Send;
 
-    fn load(&self) -> Result<LoadedMusic<Self::Reader>, Box<dyn Error>>;
+    fn read(&self) -> Result<LoadedMusic<Self::Reader>, Box<dyn Error>>;
 }
 
+#[derive(Clone)]
 pub struct LoadedMusic<Reader>
 where
-    Reader: Read + Seek + Send,
+    Reader: Read + Seek + Sync + Send,
 {
-    pub source: Decoder<Reader>,
-    pub music_duration: Duration,
+    pub reader: Reader,
 }
 
 pub enum FeusicMusicReader {
-    ZipFeusic { bytes: BufReader<Cursor<Vec<u8>>> },
+    ZipFeusic { bytes: Cursor<Vec<u8>> },
     FolderFeusic { bytes: BufReader<File> },
 }
 
@@ -59,7 +56,7 @@ impl Seek for FeusicMusicReader {
 impl MusicLoader for FeusicMusicLoader {
     type Reader = FeusicMusicReader;
 
-    fn load(&self) -> Result<LoadedMusic<FeusicMusicReader>, Box<dyn Error>> {
+    fn read(&self) -> Result<LoadedMusic<FeusicMusicReader>, Box<dyn Error>> {
         let reader = match self {
             FeusicMusicLoader::ZipFeusic {
                 feusic_path,
@@ -80,7 +77,7 @@ impl MusicLoader for FeusicMusicLoader {
                 music.read_to_end(&mut buf)?;
 
                 FeusicMusicReader::ZipFeusic {
-                    bytes: BufReader::new(Cursor::new(buf)),
+                    bytes: Cursor::new(buf),
                 }
             }
             FeusicMusicLoader::FolderFeusic { music_path } => {
@@ -93,12 +90,6 @@ impl MusicLoader for FeusicMusicLoader {
             }
         };
 
-        let source = Decoder::new(reader)?;
-        let music_duration = source.total_duration().unwrap_or(Duration::from_secs(0));
-
-        Ok(LoadedMusic {
-            music_duration,
-            source,
-        })
+        Ok(LoadedMusic { reader })
     }
 }

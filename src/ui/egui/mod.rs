@@ -1,3 +1,5 @@
+use egui::Slider;
+
 use crate::core::{feusic::loader::MusicLoader, player::FeusicPlayerController};
 use std::error::Error;
 
@@ -7,6 +9,7 @@ const TITLE: &str = "Hello, egui!";
 
 struct FeusicEguiApp<M: MusicLoader> {
     player: FeusicPlayerController<M>,
+    pixel_per_point: f32,
 }
 
 impl<M: MusicLoader> eframe::App for FeusicEguiApp<M> {
@@ -16,9 +19,11 @@ impl<M: MusicLoader> eframe::App for FeusicEguiApp<M> {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint();
-        ctx.set_pixels_per_point(3.0);
+        ctx.set_pixels_per_point(self.pixel_per_point);
         egui::CentralPanel::default().show(ctx, |ui| -> Result<(), Box<dyn Error>> {
-            view::render(&ui, &self.player).into()
+            view::render(&ui, &self.player)?;
+            ui.add(Slider::new(&mut self.pixel_per_point, 1.0..=4.0));
+            Ok(())
         });
     }
 }
@@ -35,7 +40,12 @@ pub fn run_ui<M: MusicLoader>(player: FeusicPlayerController<M>) -> Result<(), B
     eframe::run_native(
         TITLE,
         options,
-        Box::new(|_| Ok(Box::new(FeusicEguiApp { player }))),
+        Box::new(|_| {
+            Ok(Box::new(FeusicEguiApp {
+                player,
+                pixel_per_point: 2.0,
+            }))
+        }),
     )?;
 
     Ok(())
