@@ -3,9 +3,9 @@ mod read_seek_source;
 mod timer;
 
 use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
-use kira::sound::FromFileError;
+use kira::sound::{FromFileError, PlaybackState};
 use kira::track::{TrackBuilder, TrackHandle};
-use kira::{AudioManager, AudioManagerSettings, Decibels, Easing, StartTime, Tween};
+use kira::{AudioManager, AudioManagerSettings, Decibels, Easing, PlaybackRate, StartTime, Tween};
 use read_seek_source::ReadSeekSource;
 use std::error::Error;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -53,6 +53,7 @@ pub(super) enum PlayerAction {
     CrossfadeNext(Duration),
     CrossfadeWith(Duration, usize),
     Seek(Duration),
+    RemoveLoop,
 }
 
 impl<M: MusicLoader> FeusicPlayer<M> {
@@ -166,6 +167,13 @@ impl<M: MusicLoader> FeusicPlayer<M> {
         println!("Seeked to {:?}", duration);
     }
 
+    fn remove_loop(&mut self) {
+        for (_, handle) in self.tracks.iter_mut() {
+            handle.set_loop_region(None);
+        }
+        println!("Removed loop");
+    }
+
     fn pause(&mut self) {
         for (_, handle) in self.tracks.iter_mut() {
             println!("Pausing audio.");
@@ -257,6 +265,15 @@ impl<M: MusicLoader> FeusicPlayer<M> {
     pub fn tick(&mut self) {
         self.timer.tick();
 
+        if self
+            .tracks
+            .get(0)
+            .map(|(_, handle)| matches!(handle.state(), PlaybackState::Stopped))
+            .unwrap_or(false)
+        {
+            self.action_sender.send(PlayerAction::Next).ok();
+        }
+
         for action in self
             .action_receiver
             .try_iter()
@@ -296,6 +313,9 @@ impl<M: MusicLoader> FeusicPlayer<M> {
                 }
                 PlayerAction::Seek(duration) => {
                     self.seek(duration);
+                }
+                PlayerAction::RemoveLoop => {
+                    self.remove_loop();
                 }
             }
         }

@@ -22,9 +22,15 @@ pub(super) fn render<M: MusicLoader>(
             ui.label(format!("Position: {}", position.as_millis()));
             ui.separator();
 
-            if ui.button("Crossfade").clicked() {
-                player.crossfade(Duration::from_millis(1000));
-            }
+            ui.horizontal(|ui| {
+                if ui.button("Crossfade").clicked() {
+                    player.crossfade(Duration::from_millis(1000));
+                }
+
+                if ui.button("Remove loop").clicked() {
+                    player.remove_loop();
+                }
+            });
 
             ui.vertical_centered(|ui| {
                 ui.horizontal(|ui| {

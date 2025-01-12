@@ -58,6 +58,10 @@ impl<M: MusicLoader> FeusicPlayerController<M> {
         self.action_sender.send(PlayerAction::Seek(duration)).ok();
     }
 
+    pub fn remove_loop(&self) {
+        self.action_sender.send(PlayerAction::RemoveLoop).ok();
+    }
+
     pub fn music_position(&self) -> Duration {
         let player = self.player.lock().unwrap();
         player.music_position()

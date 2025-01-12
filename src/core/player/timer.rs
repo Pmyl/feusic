@@ -71,8 +71,8 @@ impl FeusicTimer {
         self.last_tick = new_tick;
 
         if self.time_left_secs <= 0.0 {
-            println!("TIMING:next");
-            self.sender.send(PlayerAction::Next).unwrap();
+            println!("TIMING:remove_loop");
+            self.sender.send(PlayerAction::RemoveLoop).unwrap();
             self.running = false;
             return;
         }
