@@ -1,6 +1,6 @@
 use egui::Slider;
 
-use crate::core::{feusic::loader::MusicLoader, player::FeusicPlayerController};
+use crate::core::{feusic::loader::MusicLoader, player::controller::FeusicPlayerController};
 use std::error::Error;
 
 mod view;
@@ -18,7 +18,6 @@ impl<M: MusicLoader> eframe::App for FeusicEguiApp<M> {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        ctx.request_repaint();
         ctx.set_pixels_per_point(self.pixel_per_point);
         egui::CentralPanel::default().show(ctx, |ui| -> Result<(), Box<dyn Error>> {
             view::render(&ui, &self.player)?;

@@ -2,7 +2,7 @@ use std::{error::Error, time::Duration};
 
 use egui::{style::HandleShape, Ui};
 
-use crate::core::{feusic::loader::MusicLoader, player::FeusicPlayerController};
+use crate::core::{feusic::loader::MusicLoader, player::controller::FeusicPlayerController};
 
 pub(super) fn render<M: MusicLoader>(
     ui: &Ui,
@@ -11,6 +11,8 @@ pub(super) fn render<M: MusicLoader>(
     egui::Window::new("Controls")
         .open(&mut true)
         .show(&ui.ctx(), |ui| {
+            ui.ctx().request_repaint_after(Duration::from_millis(200));
+
             let duration = player.music_duration();
             let position = player.music_position();
 

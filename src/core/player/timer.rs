@@ -14,6 +14,7 @@ pub struct FeusicTimer {
     sender: Sender<PlayerAction>,
     change_time: Instant,
     running: bool,
+    last_tick: Instant,
     time_left_secs: f32,
 }
 
@@ -38,6 +39,7 @@ impl FeusicTimer {
                 running,
                 timings: timing,
                 change_time: Instant::now(),
+                last_tick: Instant::now(),
                 time_left_secs: duration.as_secs_f32(),
             };
 
@@ -51,17 +53,22 @@ impl FeusicTimer {
                 running: false,
                 timings: vec![],
                 change_time: Instant::now(),
+                last_tick: Instant::now(),
                 time_left_secs: duration.as_secs_f32(),
             }
         }
     }
 
-    pub fn tick(&mut self, delta_as_secs: f32) {
+    pub fn tick(&mut self) {
         if !self.running {
             return;
         }
 
+        let new_tick = Instant::now();
+        let delta_as_secs = (new_tick - self.last_tick).as_secs_f32();
+
         self.time_left_secs -= delta_as_secs;
+        self.last_tick = new_tick;
 
         if self.time_left_secs <= 0.0 {
             println!("TIMING:next");

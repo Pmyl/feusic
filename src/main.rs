@@ -5,6 +5,7 @@ mod ui;
 
 use core::feusic::loader::FeusicMusicLoader;
 use core::feusic::Feusic;
+use core::player::controller::FeusicPlayerController;
 use core::player::FeusicPlayer;
 use std::error::Error;
 use std::fs::{self, File};
@@ -54,8 +55,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    player.play();
+    let player_controller = FeusicPlayerController::new(player);
 
-    ui::egui::run_ui(player).into()
-    // ui::terminal::run_ui(player).into()
+    player_controller.play();
+
+    ui::egui::run_ui(player_controller).into()
+    // ui::terminal::run_ui(player_controller).into()
 }
