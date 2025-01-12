@@ -5,7 +5,7 @@ mod timer;
 use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
 use kira::sound::{FromFileError, PlaybackState};
 use kira::track::{TrackBuilder, TrackHandle};
-use kira::{AudioManager, AudioManagerSettings, Decibels, Easing, PlaybackRate, StartTime, Tween};
+use kira::{AudioManager, AudioManagerSettings, Decibels, Easing, StartTime, Tween};
 use read_seek_source::ReadSeekSource;
 use std::error::Error;
 use std::sync::mpsc::{self, Receiver, Sender};

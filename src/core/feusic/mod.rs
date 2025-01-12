@@ -61,127 +61,23 @@ impl Feusic<FeusicMusicLoader> {
             .map(|n| n.to_string())
             .collect::<Vec<_>>();
 
-        let mut feusic_toml_file = zip
-            .by_name("feusic.toml")
-            .map_err(|e| format!("feusic.toml should be in a .feusic file. {}", e))?;
-
         let mut feusic_toml = String::new();
-        feusic_toml_file.read_to_string(&mut feusic_toml)?;
+        zip.by_name("feusic.toml")
+            .map_err(|e| format!("feusic.toml should be in a .feusic file. {}", e))?
+            .read_to_string(&mut feusic_toml)?;
 
-        let config: FeusicConfig = toml::from_str(&feusic_toml)
-            .map_err(|e| format!("Failed to read feusic.toml. {}", e))?;
+        let feusic_path = file_path.file_name().unwrap().to_str().unwrap().to_string();
 
-        fn read_number(chars: &mut Peekable<Chars>) -> Result<usize, Box<dyn Error>> {
-            let mut n: usize = 0;
-            let mut found = false;
-
-            while let Some(maybe_number) = chars.peek() {
-                if let Some(number) = maybe_number.to_digit(10) {
-                    found = true;
-                    n = n * 10 + number as usize;
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-
-            if found {
-                Ok(n)
-            } else {
-                Err("Expected number".into())
-            }
-        }
-
-        let mut chars = config.timing.chars().peekable();
-
-        match chars.next() {
-            Some('s') => {}
-            _ => return Err("Timing should start with 's'".into()),
-        }
-
-        let first_music = read_number(&mut chars)?;
-
-        Ok(Self {
-            name: file_path.file_name().unwrap().to_str().unwrap().to_string(),
-            duration: Duration::from_secs(config.duration),
-            looping: match (config.loop_start, config.loop_end) {
-                (Some(start), Some(end)) => Some(Looping { start, end }),
-                _ => None,
+        Self::from(
+            feusic_path.clone(),
+            musics_names,
+            feusic_toml,
+            |_, music_name| FeusicMusicLoader::ZipFeusic {
+                feusic_path: feusic_path.clone(),
+                music_name,
             },
-            first_music,
-            musics: {
-                let mut musics = vec![];
-
-                loop {
-                    let music_index;
-                    let wait;
-
-                    match chars.next() {
-                        Some('|') => {}
-                        _ => break,
-                    }
-
-                    music_index = read_number(&mut chars)?;
-
-                    match chars.next() {
-                        Some(':') => {}
-                        _ => return Err("Expected ':'".into()),
-                    }
-
-                    match chars.next() {
-                        Some('w') => {
-                            let wait_lower = read_number(&mut chars)?;
-                            let wait_higher = match chars.peek() {
-                                Some('-') => {
-                                    chars.next();
-                                    read_number(&mut chars)?
-                                }
-                                _ => wait_lower,
-                            };
-                            wait = Some((wait_lower, wait_higher));
-                        }
-                        Some('p') => {
-                            todo!("implement parsing of probability weight")
-                        }
-                        _ => return Err("Expected either 'w' or 'p'".into()),
-                    }
-
-                    match chars.next() {
-                        Some(':') => {}
-                        _ => return Err("Expected ':'".into()),
-                    }
-
-                    let target_music_index = read_number(&mut chars)?;
-
-                    if musics_names.len() < target_music_index {
-                        return Err(
-                            format!("target index {} does not exists", target_music_index).into(),
-                        );
-                    }
-
-                    let name = musics_names
-                        .get(music_index)
-                        .map(|s| s.to_string())
-                        .ok_or_else(|| format!("No music at index {}", music_index))?;
-
-                    musics.push(Music {
-                        name: name.clone(),
-                        loader: FeusicMusicLoader::ZipFeusic {
-                            feusic_path: file_path.to_str().unwrap().to_string(),
-                            music_name: name,
-                        },
-                        next_choices: vec![Next {
-                            probability_weight: 100,
-                            target_music: target_music_index,
-                            wait: wait.ok_or_else(|| "no wait defined")?,
-                        }],
-                    });
-                }
-
-                println!("Loaded feusic {:?}", musics);
-                musics
-            },
-        })
+        )
+        .inspect(|feusic| println!("Loaded musics {:?}", feusic.musics))
     }
 
     pub fn from_feusic_folder(folder_path: &PathBuf) -> Result<Self, Box<dyn Error>> {
@@ -214,124 +110,255 @@ impl Feusic<FeusicMusicLoader> {
 
         let mut feusic_toml = String::new();
         feusic_toml_file
-            .expect("feusic.toml should be in the .feusic folder")
+            .ok_or_else(|| "feusic.toml should be in the .feusic folder")?
             .read_to_string(&mut feusic_toml)?;
 
+        let feusic_path = folder_path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+
+        Self::from(feusic_path, musics_names, feusic_toml, |_, music_name| {
+            FeusicMusicLoader::FolderFeusic {
+                music_path: music_name,
+            }
+        })
+        .inspect(|feusic| println!("Loaded musics {:?}", feusic.musics))
+    }
+
+    fn from<F: Fn(usize, String) -> FeusicMusicLoader>(
+        feusic_name: String,
+        musics_names: Vec<String>,
+        feusic_toml: String,
+        music_loader_factory: F,
+    ) -> Result<Self, Box<dyn Error>> {
         let config: FeusicConfig = toml::from_str(&feusic_toml)
             .map_err(|e| format!("Failed to read feusic.toml. {}", e))?;
 
-        fn read_number(chars: &mut Peekable<Chars>) -> Result<usize, Box<dyn Error>> {
-            let mut n: usize = 0;
-            let mut found = false;
+        let parsed_timing = ParsedTiming::try_from(&config.timing.as_str())?;
 
-            while let Some(maybe_number) = chars.peek() {
-                if let Some(number) = maybe_number.to_digit(10) {
-                    found = true;
-                    n = n * 10 + number as usize;
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
+        Ok(Self {
+            name: feusic_name,
+            duration: Duration::from_secs(config.duration),
+            looping: match (config.loop_start, config.loop_end) {
+                (Some(start), Some(end)) => Some(Looping { start, end }),
+                _ => None,
+            },
+            first_music: parsed_timing.first_music_index,
+            musics: parsed_timing
+                .timing_musics
+                .map(|parsed_timing_music| {
+                    let parsed_timing_music = match parsed_timing_music {
+                        Ok(pc) => pc,
+                        Err(e) => return Err(e),
+                    };
 
-            if found {
-                Ok(n)
-            } else {
-                Err("Expected number".into())
-            }
-        }
+                    if parsed_timing_music
+                        .choices
+                        .iter()
+                        .any(|c| c.target_music_index >= musics_names.len())
+                    {
+                        return Err(format!(
+                            "target index {} does not exists",
+                            parsed_timing_music
+                                .choices
+                                .iter()
+                                .find(|c| musics_names.len() < c.target_music_index)
+                                .unwrap()
+                                .target_music_index
+                        )
+                        .into());
+                    }
 
-        let mut chars = config.timing.chars().peekable();
+                    let name = musics_names
+                        .get(parsed_timing_music.music_index)
+                        .map(|s| s.to_string())
+                        .ok_or_else(|| {
+                            format!("No music at index {}", parsed_timing_music.music_index)
+                        })?;
+
+                    Ok(Music {
+                        name: name.clone(),
+                        loader: music_loader_factory(parsed_timing_music.music_index, name),
+                        next_choices: parsed_timing_music
+                            .choices
+                            .into_iter()
+                            .map(|parsed_choice| parsed_choice.into())
+                            .collect::<Vec<_>>(),
+                    })
+                })
+                .collect::<Result<Vec<Music<FeusicMusicLoader>>, Box<dyn Error>>>()?,
+        })
+    }
+}
+
+struct ParsedTiming<'a> {
+    first_music_index: usize,
+    timing_musics: ParsedTimingMusicIterator<'a>,
+}
+
+struct ParsedTimingMusic {
+    music_index: usize,
+    choices: Vec<ParsedTimingChoice>,
+}
+
+struct ParsedTimingChoice {
+    probability_weight: usize,
+    target_music_index: usize,
+    wait: (usize, usize),
+}
+
+struct ParsedTimingMusicIterator<'a> {
+    chars: Peekable<Chars<'a>>,
+}
+
+impl<'a> ParsedTiming<'a> {
+    fn try_from(s: &'a str) -> Result<Self, Box<dyn Error>> {
+        let mut chars = s.chars().peekable();
 
         match chars.next() {
             Some('s') => {}
             _ => return Err("Timing should start with 's'".into()),
         }
 
-        let first_music = read_number(&mut chars)?;
+        let first_music_index = read_number(&mut chars)?;
 
         Ok(Self {
-            name: folder_path
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string(),
-            duration: Duration::from_secs(config.duration),
-            looping: match (config.loop_start, config.loop_end) {
-                (Some(start), Some(end)) => Some(Looping { start, end }),
-                _ => None,
-            },
-            first_music,
-            musics: {
-                let mut musics = vec![];
+            first_music_index,
+            timing_musics: ParsedTimingMusicIterator { chars },
+        })
+    }
+}
 
-                loop {
-                    let music_index;
-                    let wait;
+impl<'a> Iterator for ParsedTimingMusicIterator<'a> {
+    type Item = Result<ParsedTimingMusic, Box<dyn Error>>;
 
-                    match chars.next() {
-                        Some('|') => {}
-                        _ => break,
-                    }
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut choices = vec![];
 
-                    music_index = read_number(&mut chars)?;
+        let mut wait = None;
+        let mut probability_weight = None;
 
-                    match chars.next() {
-                        Some(':') => {}
-                        _ => return Err("Expected ':'".into()),
-                    }
+        match self.chars.next() {
+            Some('|') => {}
+            _ => return None,
+        }
 
-                    match chars.next() {
-                        Some('w') => {
-                            let wait_lower = read_number(&mut chars)?;
-                            let wait_higher = match chars.peek() {
-                                Some('-') => {
-                                    chars.next();
-                                    read_number(&mut chars)?
-                                }
-                                _ => wait_lower,
-                            };
-                            wait = Some((wait_lower, wait_higher));
+        let music_index = match read_number(&mut self.chars) {
+            Ok(number) => number,
+            Err(e) => return Some(Err(e)),
+        };
+
+        match self.chars.next() {
+            Some(':') => {}
+            _ => return Some(Err("Expected ':'".into())),
+        }
+
+        let mut choices_with_probability = 0;
+        loop {
+            match self.chars.next() {
+                Some('w') => {
+                    let wait_lower = match read_number(&mut self.chars) {
+                        Ok(number) => number,
+                        Err(e) => return Some(Err(e)),
+                    };
+                    let wait_higher = match self.chars.peek() {
+                        Some('-') => {
+                            self.chars.next();
+                            match read_number(&mut self.chars) {
+                                Ok(number) => number,
+                                Err(e) => return Some(Err(e)),
+                            }
                         }
-                        Some('p') => {
-                            todo!("implement parsing of probability weight")
-                        }
-                        _ => return Err("Expected either 'w' or 'p'".into()),
-                    }
+                        _ => wait_lower,
+                    };
+                    wait = Some((wait_lower, wait_higher));
+                }
+                Some('p') => {
+                    choices_with_probability += 1;
 
-                    match chars.next() {
-                        Some(':') => {}
-                        _ => return Err("Expected ':'".into()),
-                    }
-
-                    let target_music_index = read_number(&mut chars)?;
-
-                    if musics_names.len() < target_music_index {
-                        return Err(
-                            format!("target index {} does not exists", target_music_index).into(),
-                        );
-                    }
-
-                    let name = musics_names
-                        .get(music_index)
-                        .map(|s| s.to_string())
-                        .ok_or_else(|| format!("No music at index {}", music_index))?;
-
-                    musics.push(Music {
-                        name: name.clone(),
-                        loader: FeusicMusicLoader::FolderFeusic { music_path: name },
-                        next_choices: vec![Next {
-                            probability_weight: 100,
-                            target_music: target_music_index,
-                            wait: wait.ok_or_else(|| "no wait defined")?,
-                        }],
+                    probability_weight = Some(match read_number(&mut self.chars) {
+                        Ok(number) => number,
+                        Err(e) => return Some(Err(e)),
                     });
                 }
+                _ => return Some(Err("Expected either 'w' or 'p'".into())),
+            }
 
-                println!("Loaded feusic {:?}", musics);
-                musics
-            },
-        })
+            match self.chars.next() {
+                Some(':') => {}
+                _ => return Some(Err("Expected ':'".into())),
+            }
+
+            let target_music_index = match read_number(&mut self.chars) {
+                Ok(number) => number,
+                Err(e) => return Some(Err(e)),
+            };
+
+            let Some(wait) = wait else {
+                return Some(Err("no wait defined".into()));
+            };
+
+            choices.push(ParsedTimingChoice {
+                probability_weight: probability_weight.unwrap_or(100),
+                target_music_index,
+                wait,
+            });
+
+            match self.chars.peek() {
+                Some('/') => {
+                    self.chars.next();
+                }
+                _ => break,
+            }
+        }
+
+        if choices.len() > 1
+            && (choices.iter().any(|c| c.probability_weight == 0)
+                || choices.len() != choices_with_probability)
+        {
+            return Some(Err(
+                r#"When setting multiple choices they all need probability specified different than 0.
+                    e.g. s0|0:w120000-150000:1|1:w15000-60000;p30:2/w5000-10000;p70:0|2:w6000-20000:1"#.into(),
+            ));
+        }
+
+        Some(Ok(ParsedTimingMusic {
+            music_index,
+            choices,
+        }))
+    }
+}
+
+impl Into<Next> for ParsedTimingChoice {
+    fn into(self) -> Next {
+        Next {
+            probability_weight: self.probability_weight,
+            target_music: self.target_music_index,
+            wait: self.wait,
+        }
+    }
+}
+
+fn read_number(chars: &mut Peekable<Chars>) -> Result<usize, Box<dyn Error>> {
+    let mut n: usize = 0;
+    let mut found = false;
+
+    while let Some(maybe_number) = chars.peek() {
+        if let Some(number) = maybe_number.to_digit(10) {
+            found = true;
+            n = n * 10 + number as usize;
+            chars.next();
+        } else {
+            break;
+        }
+    }
+
+    if found {
+        Ok(n)
+    } else {
+        Err("Expected number".into())
     }
 }
