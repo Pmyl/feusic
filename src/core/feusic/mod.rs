@@ -5,6 +5,7 @@ use std::{
     iter::Peekable,
     path::PathBuf,
     str::Chars,
+    time::Duration,
 };
 
 use loader::FeusicMusicLoader;
@@ -17,7 +18,14 @@ pub struct Feusic<M> {
     pub name: String,
     pub musics: Vec<Music<M>>,
     pub first_music: usize,
-    pub repeat: usize,
+    pub duration: Duration,
+    pub looping: Option<Looping>,
+}
+
+#[derive(Debug)]
+pub struct Looping {
+    pub start: f64,
+    pub end: f64,
 }
 
 #[derive(Debug)]
@@ -37,7 +45,9 @@ pub struct Next {
 #[derive(Deserialize)]
 struct FeusicConfig {
     timing: String,
-    repeat: usize,
+    duration: u64,
+    loop_start: Option<f64>,
+    loop_end: Option<f64>,
 }
 
 impl Feusic<FeusicMusicLoader> {
@@ -93,7 +103,11 @@ impl Feusic<FeusicMusicLoader> {
 
         Ok(Self {
             name: file_path.file_name().unwrap().to_str().unwrap().to_string(),
-            repeat: config.repeat,
+            duration: Duration::from_secs(config.duration),
+            looping: match (config.loop_start, config.loop_end) {
+                (Some(start), Some(end)) => Some(Looping { start, end }),
+                _ => None,
+            },
             first_music,
             musics: {
                 let mut musics = vec![];
@@ -243,7 +257,11 @@ impl Feusic<FeusicMusicLoader> {
                 .to_str()
                 .unwrap()
                 .to_string(),
-            repeat: config.repeat,
+            duration: Duration::from_secs(config.duration),
+            looping: match (config.loop_start, config.loop_end) {
+                (Some(start), Some(end)) => Some(Looping { start, end }),
+                _ => None,
+            },
             first_music,
             musics: {
                 let mut musics = vec![];

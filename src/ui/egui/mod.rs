@@ -5,7 +5,7 @@ use std::error::Error;
 
 mod view;
 
-const TITLE: &str = "Hello, egui!";
+const TITLE: &str = "Feusic";
 
 struct FeusicEguiApp<M: MusicLoader> {
     player: FeusicPlayerController<M>,

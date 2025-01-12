@@ -11,9 +11,10 @@ winit = { version = "0.30.0", default-features = false, features = [
     "rwh_06",
 ] }
 rand = "0.8.5"
-rodio = "0.20.1"
 serde = { version = "1.0.217", features = ["derive"] }
 toml = "0.8.19"
 zip = "2.2.2"
 egui = "0.30.0"
 eframe = "0.30.0"
+kira = "0.10.1"
+symphonia = "0.5.4"

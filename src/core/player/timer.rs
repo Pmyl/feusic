@@ -14,12 +14,18 @@ pub struct FeusicTimer {
     sender: Sender<PlayerAction>,
     change_time: Instant,
     running: bool,
+    time_left_secs: f32,
 }
 
 const CROSSFADE_TIME_FIRE_EMBLEM: Duration = Duration::from_millis(1000);
 
 impl FeusicTimer {
-    pub fn new(sender: Sender<PlayerAction>, start: usize, timing: Vec<Vec<Next>>) -> Self {
+    pub fn new(
+        sender: Sender<PlayerAction>,
+        start: usize,
+        duration: Duration,
+        timing: Vec<Vec<Next>>,
+    ) -> Self {
         println!("Start timer");
 
         let running = !timing.is_empty();
@@ -32,9 +38,10 @@ impl FeusicTimer {
                 running,
                 timings: timing,
                 change_time: Instant::now(),
+                time_left_secs: duration.as_secs_f32(),
             };
 
-            timer.wait_intil_next_change();
+            timer.wait_until_next_change();
             timer
         } else {
             Self {
@@ -44,12 +51,22 @@ impl FeusicTimer {
                 running: false,
                 timings: vec![],
                 change_time: Instant::now(),
+                time_left_secs: duration.as_secs_f32(),
             }
         }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, delta_as_secs: f32) {
         if !self.running {
+            return;
+        }
+
+        self.time_left_secs -= delta_as_secs;
+
+        if self.time_left_secs <= 0.0 {
+            println!("TIMING:next");
+            self.sender.send(PlayerAction::Next).unwrap();
+            self.running = false;
             return;
         }
 
@@ -70,10 +87,10 @@ impl FeusicTimer {
 
         self.timing_index = case.target_music;
 
-        self.wait_intil_next_change();
+        self.wait_until_next_change();
     }
 
-    fn wait_intil_next_change(&mut self) {
+    fn wait_until_next_change(&mut self) {
         let current = &self.timings[self.timing_index];
         self.case_index = Self::find_next_case_index(current);
         let case = &current[self.case_index];

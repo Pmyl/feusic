@@ -1,18 +1,20 @@
+mod read_seek_source;
 mod timer;
 
-use cpal::traits::HostTrait;
-use rodio::source::EmptyCallback;
-use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink, Source};
+use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
+use kira::sound::FromFileError;
+use kira::track::{TrackBuilder, TrackHandle};
+use kira::{AudioManager, AudioManagerSettings, Decibels, StartTime, Tween};
+use read_seek_source::ReadSeekSource;
 use std::error::Error;
-use std::ops::Sub;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::{self};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use timer::FeusicTimer;
 
 use super::feusic::loader::MusicLoader;
-use super::feusic::{Feusic, Music};
+use super::feusic::Feusic;
 
 pub enum PlayerState {
     Playing,
@@ -26,23 +28,20 @@ pub struct FeusicPlayer<M> {
     playlist: Vec<Feusic<M>>,
     current_feusic_index: usize,
 
-    sinks: Vec<Arc<Sink>>,
-    current_sink_index: usize,
+    audio_manager: AudioManager,
+    tracks: Vec<(TrackHandle, StreamingSoundHandle<FromFileError>)>,
+    current_track_index: usize,
     music_duration: Duration,
-    repeat_count: usize,
 
     action_sender: Sender<PlayerAction>,
     timer: FeusicTimer,
-
-    stream_handle: OutputStreamHandle,
-    _stream: SendOutputStream,
 }
 
-struct SendOutputStream(#[allow(unused)] OutputStream);
-// OutputStream can't be Send only because Android limitation
-// I don't target Android so this is fine
-// Also the limitation should probably be lifted https://github.com/RustAudio/cpal/issues/818
-unsafe impl Send for SendOutputStream {}
+const INSTANT_TWEEN: Tween = Tween {
+    duration: Duration::from_millis(0),
+    easing: kira::Easing::Linear,
+    start_time: StartTime::Immediate,
+};
 
 #[derive(Debug)]
 enum PlayerAction {
@@ -53,8 +52,7 @@ enum PlayerAction {
     Next,
     CrossfadeNext(Duration),
     CrossfadeWith(Duration, usize),
-    NextRepeat,
-    SeekToOneSecondLeft,
+    Seek(Duration),
 }
 
 pub struct FeusicPlayerController<M> {
@@ -66,29 +64,21 @@ impl<M: MusicLoader> FeusicPlayer<M> {
     pub fn new(
         playlist: Vec<Feusic<M>>,
     ) -> Result<FeusicPlayerController<M>, Box<dyn std::error::Error>> {
-        let host = cpal::default_host();
-        let device = host
-            .default_output_device()
-            .ok_or("No default output device")?;
-
-        let Ok((_stream, stream_handle)) = OutputStream::try_from_device(&device) else {
-            return Err("Error finding output device".into());
-        };
-
         let (action_sender, action_receiver) = mpsc::channel();
 
+        let manager = AudioManager::new(AudioManagerSettings::default())?;
+
         let player = Self {
-            sinks: vec![],
-            _stream: SendOutputStream(_stream),
-            stream_handle,
             playlist,
-            current_sink_index: 0,
+            current_track_index: 0,
             current_feusic_index: 0,
             action_sender: action_sender.clone(),
-            timer: FeusicTimer::new(action_sender.clone(), 0, vec![]),
+            timer: FeusicTimer::new(action_sender.clone(), 0, Duration::from_secs(0), vec![]),
             state: PlayerState::Stopped,
             music_duration: Duration::from_secs(0),
-            repeat_count: 0,
+
+            audio_manager: manager,
+            tracks: vec![],
         };
 
         let player = Arc::new(Mutex::new(player));
@@ -102,34 +92,38 @@ impl<M: MusicLoader> FeusicPlayer<M> {
     }
 
     fn play_feusic(&mut self, feusic_index: usize) -> Result<(), Box<dyn Error>> {
-        if !self.sinks.is_empty() {
-            self.fade_out(Duration::from_millis(2000));
-
-            for sink in self.sinks.iter() {
-                sink.clear();
-            }
-        }
+        self.tracks.drain(..);
 
         let feusic = &self.playlist[feusic_index];
 
-        self.current_sink_index = feusic.first_music;
+        self.current_track_index = feusic.first_music;
         self.current_feusic_index = feusic_index;
 
-        let mut sinks = Vec::new();
+        let mut tracks = Vec::new();
         for music in &self.playlist[feusic_index].musics {
-            let sink = Sink::try_new(&self.stream_handle)?;
-            let sink = Arc::new(sink);
-            self.music_duration = self.load_music_into_sink(music, &sink)?;
-            sink.pause();
-            sinks.push(sink);
+            let mut track = self.audio_manager.add_sub_track(TrackBuilder::default())?;
+            let loaded_music = music.loader.read()?;
+            let media_source = ReadSeekSource::new(loaded_music.reader);
+            let sound_data = StreamingSoundData::from_media_source(media_source)?;
+            self.music_duration = sound_data.duration();
+
+            let mut handle = track.play(sound_data)?;
+            if let Some(looping) = &feusic.looping {
+                handle.set_loop_region(looping.start..looping.end);
+            } else {
+                handle.set_loop_region(..);
+            }
+            handle.pause(INSTANT_TWEEN);
+
+            tracks.push((track, handle));
             println!("Loaded audio file: {}", music.name);
         }
 
-        self.repeat_count = 0;
-        self.sinks = sinks;
+        self.tracks = tracks;
         self.timer = FeusicTimer::new(
             self.action_sender.clone(),
-            self.current_sink_index,
+            self.current_track_index,
+            feusic.duration,
             feusic
                 .musics
                 .iter()
@@ -151,7 +145,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
     }
 
     fn play(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.sinks.is_empty() {
+        if self.tracks.is_empty() {
             self.play_feusic_by_name(&self.playlist[0].name.clone())?;
         } else {
             self.play_internal();
@@ -161,62 +155,37 @@ impl<M: MusicLoader> FeusicPlayer<M> {
     }
 
     fn play_internal(&mut self) {
-        for (i, sink) in self.sinks.iter().enumerate() {
-            if self.current_sink_index == i {
+        for (i, (_, handle)) in self.tracks.iter_mut().enumerate() {
+            if self.current_track_index == i {
                 println!(
                     "Play audio {} at volume 1",
                     self.playlist[self.current_feusic_index].musics[i].name
                 );
-                sink.set_volume(1.0);
+                handle.set_volume(Decibels::IDENTITY, INSTANT_TWEEN);
             } else {
                 println!(
                     "Play audio {} at volume 0",
                     self.playlist[self.current_feusic_index].musics[i].name
                 );
-                sink.set_volume(0.0);
+                handle.set_volume(Decibels::SILENCE, INSTANT_TWEEN);
             }
-            sink.play();
+            handle.resume(INSTANT_TWEEN);
         }
         self.state = PlayerState::Playing;
     }
 
-    fn seek_to_one_second_left(&mut self) -> Result<(), Box<dyn Error>> {
-        for sink in self.sinks.iter() {
-            sink.try_seek(self.music_duration.sub(Duration::from_secs(1)))?;
+    fn seek(&mut self, duration: Duration) {
+        for (_, handle) in self.tracks.iter_mut() {
+            handle.seek_to(duration.as_secs_f64());
         }
 
-        println!("Seeked to one second before");
-        Ok(())
-    }
-
-    fn next_repeat(&mut self) -> Result<(), Box<dyn Error>> {
-        self.repeat_count += 1;
-        let feusic = &self.playlist[self.current_feusic_index];
-
-        if self.repeat_count < feusic.repeat {
-            for sink in self.sinks.iter() {
-                sink.clear();
-            }
-
-            for (music, sink) in feusic.musics.iter().zip(self.sinks.iter()) {
-                self.music_duration = self.load_music_into_sink(music, sink)?;
-            }
-
-            for sink in self.sinks.iter() {
-                sink.play();
-            }
-
-            println!("Repeat: {}", self.repeat_count);
-            Ok(())
-        } else {
-            self.next()
-        }
+        println!("Seeked to {:?}", duration);
     }
 
     fn pause(&mut self) {
-        for sink in self.sinks.iter() {
+        for (_, handle) in self.tracks.iter_mut() {
             println!("Pausing audio.");
-            sink.pause();
+            handle.pause(INSTANT_TWEEN);
         }
         self.state = PlayerState::Paused;
     }
@@ -226,9 +195,9 @@ impl<M: MusicLoader> FeusicPlayer<M> {
     }
 
     fn stop(&mut self) {
-        for sink in self.sinks.iter() {
+        for (_, handle) in self.tracks.iter_mut() {
             println!("Stopping audio.");
-            sink.stop();
+            handle.stop(INSTANT_TWEEN);
         }
         self.state = PlayerState::Stopped;
     }
@@ -243,7 +212,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
     }
 
     fn crossfade_next(&mut self, duration: Duration) -> Result<(), Box<dyn Error>> {
-        self.crossfade_with(duration, (self.current_sink_index + 1) % self.sinks.len())
+        self.crossfade_with(duration, (self.current_track_index + 1) % self.tracks.len())
     }
 
     fn crossfade_with(
@@ -259,88 +228,53 @@ impl<M: MusicLoader> FeusicPlayer<M> {
                 println!("Not crossfading, stopped");
             }
             PlayerState::Playing => {
-                if next_music_index >= self.sinks.len() {
+                if next_music_index >= self.tracks.len() {
                     eprintln!("Target music index {} does not exists.", next_music_index);
                     return Ok(());
                 }
 
-                if self.sinks.len() < 2 {
+                if self.tracks.len() < 2 {
                     println!("Crossfade requires at least two audio files in a feusic.");
                     return Ok(());
                 }
 
-                let current_sink = self.sinks[self.current_sink_index].clone();
-                let next_sink = self.sinks[next_music_index].clone();
+                self.tracks
+                    .get_mut(next_music_index)
+                    .map(|(_, next_handle)| {
+                        next_handle.set_volume(
+                            Decibels::IDENTITY,
+                            Tween {
+                                duration: duration.mul_f32(1.5),
+                                ..Default::default()
+                            },
+                        )
+                    });
+                self.tracks
+                    .get_mut(self.current_track_index)
+                    .map(|(_, current_handle)| {
+                        current_handle.set_volume(
+                            Decibels::SILENCE,
+                            Tween {
+                                duration: duration.mul_f32(2.0),
+                                start_time: StartTime::Delayed(duration),
+                                ..Default::default()
+                            },
+                        )
+                    });
 
-                thread::spawn(move || {
-                    println!("Crossfading...");
+                println!("Crossfade");
 
-                    let steps = 100;
-                    let step_duration = duration / steps;
-
-                    for i in 0..=steps {
-                        let volume1 = 1.0 - (i as f32 / steps as f32);
-                        let volume2 = i as f32 / steps as f32;
-
-                        current_sink.set_volume(volume1);
-                        next_sink.set_volume(volume2);
-
-                        thread::sleep(step_duration);
-                    }
-
-                    println!("Crossfade complete.");
-                });
-
-                self.current_sink_index = next_music_index;
+                self.current_track_index = next_music_index;
             }
         }
 
         Ok(())
     }
 
-    fn fade_out(&mut self, duration: Duration) {
-        // TODO: fading out should be done in its own thread
-        println!("Fading out...");
-
-        let steps = 100;
-        let step_duration = duration / steps;
-
-        let current_sink = &self.sinks[self.current_sink_index];
-
-        for i in 0..=steps {
-            let volume = 1.0 - (i as f32 / steps as f32);
-            current_sink.set_volume(volume);
-            thread::sleep(step_duration);
-        }
-
-        println!("Fade out complete.");
-    }
-
-    fn load_music_into_sink(
-        &self,
-        music: &Music<M>,
-        sink: &Arc<Sink>,
-    ) -> Result<Duration, Box<dyn Error>> {
-        let sender = self.action_sender.clone();
-        let loaded_music = music.loader.read()?;
-        let decoder = Decoder::new(loaded_music.reader)?;
-
-        let music_duration = decoder
-            .total_duration()
-            .unwrap_or_else(|| Duration::from_secs(1));
-
-        sink.append(decoder);
-        sink.append(EmptyCallback::<f32>::new(Box::new(move || {
-            sender.send(PlayerAction::NextRepeat).unwrap();
-        })));
-
-        Ok(music_duration)
-    }
-
     pub fn music_position(&self) -> Duration {
-        self.sinks
+        self.tracks
             .get(0)
-            .map(|s| s.get_pos())
+            .map(|(_, handle)| Duration::from_secs_f64(handle.position()))
             .unwrap_or(Duration::from_secs(0))
     }
 
@@ -391,15 +325,8 @@ fn run<M: MusicLoader>(player: Arc<Mutex<FeusicPlayer<M>>>, receiver: Receiver<P
                             eprintln!("Error crossfading index {}: {}", index, e);
                         }
                     }
-                    PlayerAction::NextRepeat => {
-                        if let Err(e) = player.next_repeat() {
-                            eprintln!("Error going next: {}", e);
-                        }
-                    }
-                    PlayerAction::SeekToOneSecondLeft => {
-                        if let Err(e) = player.seek_to_one_second_left() {
-                            eprintln!("Error seeking to one second left: {}", e);
-                        }
+                    PlayerAction::Seek(duration) => {
+                        player.seek(duration);
                     }
                 }
                 drop(player);
@@ -407,12 +334,16 @@ fn run<M: MusicLoader>(player: Arc<Mutex<FeusicPlayer<M>>>, receiver: Receiver<P
         }
     });
 
-    thread::spawn(move || loop {
-        let mut player = player.lock().unwrap();
-        player.timer.tick();
-        drop(player);
+    thread::spawn(move || {
+        let mut time = Instant::now();
+        loop {
+            let mut player = player.lock().unwrap();
+            player.timer.tick((Instant::now() - time).as_secs_f32());
+            drop(player);
+            time = Instant::now();
 
-        thread::sleep(Duration::from_millis(1000));
+            thread::sleep(Duration::from_millis(1000));
+        }
     });
 }
 
@@ -437,20 +368,14 @@ impl<M: MusicLoader> FeusicPlayerController<M> {
         self.action_sender.send(PlayerAction::Next).ok();
     }
 
-    pub fn next_repeat(&self) {
-        self.action_sender.send(PlayerAction::NextRepeat).ok();
-    }
-
     pub fn crossfade(&self, duration: Duration) {
         self.action_sender
             .send(PlayerAction::CrossfadeNext(duration))
             .ok();
     }
 
-    pub fn seek_to_one_second_left(&self) {
-        self.action_sender
-            .send(PlayerAction::SeekToOneSecondLeft)
-            .ok();
+    pub fn seek(&self, duration: Duration) {
+        self.action_sender.send(PlayerAction::Seek(duration)).ok();
     }
 
     pub fn music_position(&self) -> Duration {
