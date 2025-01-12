@@ -5,7 +5,7 @@ mod timer;
 use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
 use kira::sound::FromFileError;
 use kira::track::{TrackBuilder, TrackHandle};
-use kira::{AudioManager, AudioManagerSettings, Decibels, StartTime, Tween};
+use kira::{AudioManager, AudioManagerSettings, Decibels, Easing, StartTime, Tween};
 use read_seek_source::ReadSeekSource;
 use std::error::Error;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -39,7 +39,7 @@ pub struct FeusicPlayer<M> {
 
 const INSTANT_TWEEN: Tween = Tween {
     duration: Duration::from_millis(0),
-    easing: kira::Easing::Linear,
+    easing: Easing::Linear,
     start_time: StartTime::Immediate,
 };
 
@@ -228,7 +228,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
                         next_handle.set_volume(
                             Decibels::IDENTITY,
                             Tween {
-                                duration: duration.mul_f32(1.5),
+                                duration,
                                 ..Default::default()
                             },
                         )
@@ -239,8 +239,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
                         current_handle.set_volume(
                             Decibels::SILENCE,
                             Tween {
-                                duration: duration.mul_f32(2.0),
-                                start_time: StartTime::Delayed(duration),
+                                duration,
                                 ..Default::default()
                             },
                         )

@@ -1869,6 +1869,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kira"
 version = "0.10.1"
+source = "git+https://github.com/Pmyl/kira?branch=decibel-ease#67e7797ac3cf7a86d53b2a1428de401902962808"
 dependencies = [
  "atomic-arena",
  "cpal",

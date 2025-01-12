@@ -16,5 +16,5 @@ toml = "0.8.19"
 zip = "2.2.2"
 egui = "0.30.0"
 eframe = "0.30.0"
-kira = "0.10.1"
+kira = { git = "https://github.com/Pmyl/kira", branch = "decibel-ease" }
 symphonia = "0.5.4"
