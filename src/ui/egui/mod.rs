@@ -1,18 +1,18 @@
 use egui::Slider;
 
-use crate::core::player::controller::FeusicPlayerController;
+use crate::core::{feusic::loader::MusicLoader, player::controller::FeusicPlayerController};
 use std::{error::Error, time::Duration};
 
 mod view;
 
 const TITLE: &str = "Feusic Player";
 
-struct FeusicEguiApp {
-    player: FeusicPlayerController,
+struct FeusicEguiApp<M: MusicLoader> {
+    player: FeusicPlayerController<M>,
     pixel_per_point: f32,
 }
 
-impl eframe::App for FeusicEguiApp {
+impl<M: MusicLoader> eframe::App for FeusicEguiApp<M> {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         egui::Rgba::TRANSPARENT.to_array()
     }
@@ -44,7 +44,7 @@ impl eframe::App for FeusicEguiApp {
     }
 }
 
-pub fn run_ui(player: FeusicPlayerController) -> Result<(), Box<dyn Error>> {
+pub fn run_ui<M: MusicLoader>(player: FeusicPlayerController<M>) -> Result<(), Box<dyn Error>> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1024.0, 768.0])

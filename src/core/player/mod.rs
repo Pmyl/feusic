@@ -24,7 +24,7 @@ pub enum PlayerState {
     Stopped,
 }
 
-pub struct FeusicPlayer<M> {
+pub struct FeusicPlayer<M: MusicLoader> {
     state: PlayerState,
 
     feusics: Vec<Feusic<M>>,
@@ -34,9 +34,9 @@ pub struct FeusicPlayer<M> {
     musics: Vec<(TrackHandle, StreamingSoundHandle<FromFileError>)>,
     current_music_index: usize,
 
-    pub(super) action_sender: Sender<PlayerAction>,
-    action_receiver: Receiver<PlayerAction>,
-    timer: FeusicTimer,
+    pub(super) action_sender: Sender<PlayerAction<M>>,
+    action_receiver: Receiver<PlayerAction<M>>,
+    timer: FeusicTimer<M>,
 
     shared_data: Arc<PlayerSharedData>,
 }
@@ -48,7 +48,7 @@ const INSTANT_TWEEN: Tween = Tween {
 };
 
 #[derive(Debug)]
-pub(super) enum PlayerAction {
+pub(super) enum PlayerAction<M: MusicLoader> {
     Play,
     Pause,
     Resume,
@@ -58,15 +58,16 @@ pub(super) enum PlayerAction {
     CrossfadeWith(Duration, usize),
     Seek(Duration),
     RemoveLoop,
+    SetPlaylist(Vec<Feusic<M>>),
 }
 
 impl<M: MusicLoader> FeusicPlayer<M> {
-    pub fn new(playlist: Vec<Feusic<M>>) -> Result<FeusicPlayer<M>, Box<dyn std::error::Error>> {
+    pub fn new() -> Result<FeusicPlayer<M>, Box<dyn std::error::Error>> {
         let (action_sender, action_receiver) = mpsc::channel();
         let manager = AudioManager::new(AudioManagerSettings::default())?;
 
         Ok(Self {
-            feusics: playlist,
+            feusics: vec![],
             current_music_index: 0,
             current_feusic_index: 0,
             action_sender: action_sender.clone(),
@@ -78,6 +79,21 @@ impl<M: MusicLoader> FeusicPlayer<M> {
             musics: vec![],
             shared_data: Arc::new(PlayerSharedData::default()),
         })
+    }
+
+    pub fn set_playlist(&mut self, playlist: Vec<Feusic<M>>) {
+        self.reset();
+        self.feusics = playlist;
+    }
+
+    fn reset(&mut self) {
+        self.feusics.drain(..);
+        self.current_music_index = 0;
+        self.current_feusic_index = 0;
+        self.timer.stop();
+        self.state = PlayerState::Stopped;
+        self.musics.drain(..);
+        self.shared_data.reset();
     }
 
     fn play_feusic(&mut self, feusic_index: usize) -> Result<(), Box<dyn Error>> {
@@ -307,7 +323,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
         for action in self
             .action_receiver
             .try_iter()
-            .collect::<Vec<PlayerAction>>()
+            .collect::<Vec<PlayerAction<M>>>()
         {
             match action {
                 PlayerAction::Play => {
@@ -347,6 +363,9 @@ impl<M: MusicLoader> FeusicPlayer<M> {
                 PlayerAction::RemoveLoop => {
                     self.remove_loop();
                 }
+                PlayerAction::SetPlaylist(playlist) => {
+                    self.set_playlist(playlist);
+                }
             }
         }
     }
@@ -359,7 +378,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
     }
 
     pub fn paused(&self) -> bool {
-        matches!(self.state, PlayerState::Paused)
+        matches!(self.state, PlayerState::Paused | PlayerState::Stopped)
     }
 
     pub fn shared_data(&self) -> Arc<PlayerSharedData> {

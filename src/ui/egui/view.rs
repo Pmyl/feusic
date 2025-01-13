@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use egui::{style::HandleShape, Ui};
 
-use crate::core::player::controller::FeusicPlayerController;
+use crate::core::{feusic::loader::MusicLoader, player::controller::FeusicPlayerController};
 
-pub(super) fn render(ui: &mut Ui, player: &FeusicPlayerController) {
+pub(super) fn render<M: MusicLoader>(ui: &mut Ui, player: &FeusicPlayerController<M>) {
     ui.ctx().request_repaint_after(Duration::from_millis(200));
 
     let duration = player.music_duration();

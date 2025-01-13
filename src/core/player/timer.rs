@@ -5,13 +5,16 @@ use std::{
 
 use rand::{thread_rng, Rng};
 
-use crate::core::{feusic::Next, player::PlayerAction};
+use crate::core::{
+    feusic::{loader::MusicLoader, Next},
+    player::PlayerAction,
+};
 
-pub struct FeusicTimer {
+pub struct FeusicTimer<M: MusicLoader> {
     timings: Vec<Vec<Next>>,
     timing_index: usize,
     case_index: usize,
-    sender: Sender<PlayerAction>,
+    sender: Sender<PlayerAction<M>>,
     change_time: Instant,
     running: bool,
     last_tick: Instant,
@@ -20,9 +23,9 @@ pub struct FeusicTimer {
 
 const CROSSFADE_TIME_FIRE_EMBLEM: Duration = Duration::from_millis(1000);
 
-impl FeusicTimer {
+impl<M: MusicLoader> FeusicTimer<M> {
     pub fn new(
-        sender: Sender<PlayerAction>,
+        sender: Sender<PlayerAction<M>>,
         start: usize,
         duration: Duration,
         timings: Vec<Vec<Next>>,
@@ -112,6 +115,10 @@ impl FeusicTimer {
         self.timing_index = case.target_music;
 
         self.wait_until_next_change();
+    }
+
+    pub fn stop(&mut self) {
+        self.running = false;
     }
 
     fn wait_until_next_change(&mut self) {

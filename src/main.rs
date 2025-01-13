@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("Playlist of {}", playlist.len());
 
-    let player = match FeusicPlayer::new(playlist) {
+    let player = match FeusicPlayer::new() {
         Ok(player) => {
             println!("Music player initialized successfully.");
             player
@@ -57,6 +57,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let player_controller = FeusicPlayerController::new(player);
 
+    player_controller.set_playlist(playlist);
     player_controller.play();
 
     ui::egui::run_ui(player_controller).into()

@@ -4,17 +4,17 @@ use std::{
     time::Duration,
 };
 
-use crate::core::feusic::loader::MusicLoader;
+use crate::core::feusic::{loader::MusicLoader, Feusic};
 
 use super::{shared_data::SharedDataRef, FeusicPlayer, PlayerAction, PlayerSharedData};
 
-pub struct FeusicPlayerController {
-    action_sender: Sender<PlayerAction>,
+pub struct FeusicPlayerController<M: MusicLoader> {
+    action_sender: Sender<PlayerAction<M>>,
     shared_data: Arc<PlayerSharedData>,
 }
 
-impl FeusicPlayerController {
-    pub fn new<M: MusicLoader>(player: FeusicPlayer<M>) -> Self {
+impl<M: MusicLoader> FeusicPlayerController<M> {
+    pub fn new(player: FeusicPlayer<M>) -> Self {
         let action_sender = player.action_sender.clone();
         let shared_data = player.shared_data();
 
@@ -26,6 +26,12 @@ impl FeusicPlayerController {
         controller.run(player);
 
         controller
+    }
+
+    pub fn set_playlist(&self, playlist: Vec<Feusic<M>>) {
+        self.action_sender
+            .send(PlayerAction::SetPlaylist(playlist))
+            .ok();
     }
 
     pub fn play(&self) {
@@ -82,7 +88,7 @@ impl FeusicPlayerController {
         self.shared_data.music_index()
     }
 
-    fn run<M: MusicLoader>(&self, mut player: FeusicPlayer<M>) {
+    fn run(&self, mut player: FeusicPlayer<M>) {
         thread::spawn(move || loop {
             player.tick();
             thread::sleep(Duration::from_millis(50));
