@@ -1,18 +1,22 @@
 use egui::Slider;
 
-use crate::core::{feusic::loader::MusicLoader, player::controller::FeusicPlayerController};
+use crate::core::{
+    feusic::loader::MusicLoader, player::controller::FeusicPlayerController,
+    playlist::loader::FolderPlaylistLoader,
+};
 use std::{error::Error, time::Duration};
 
 mod view;
 
 const TITLE: &str = "Feusic Player";
 
-struct FeusicEguiApp<M: MusicLoader> {
+struct FeusicEguiApp<M: MusicLoader, P: FolderPlaylistLoader<M>> {
     player: FeusicPlayerController<M>,
+    playlist_loader: P,
     pixel_per_point: f32,
 }
 
-impl<M: MusicLoader> eframe::App for FeusicEguiApp<M> {
+impl<M: MusicLoader, P: FolderPlaylistLoader<M>> eframe::App for FeusicEguiApp<M, P> {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         egui::Rgba::TRANSPARENT.to_array()
     }
@@ -38,13 +42,35 @@ impl<M: MusicLoader> eframe::App for FeusicEguiApp<M> {
                     if ui.button("Remove loop").clicked() {
                         self.player.remove_loop();
                     }
+
+                    if ui.button("Select playlist folder…").clicked() {
+                        self.player.pause();
+
+                        if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                            match self.playlist_loader.load(path.to_str().unwrap()) {
+                                Ok(playlist) => {
+                                    self.player.set_playlist(playlist);
+                                    self.player.play();
+                                }
+                                Err(e) => {
+                                    self.player.resume();
+                                    eprintln!("Error loading playlist: {}", e);
+                                }
+                            }
+                        } else {
+                            self.player.resume();
+                        }
+                    }
                 });
             });
         });
     }
 }
 
-pub fn run_ui<M: MusicLoader>(player: FeusicPlayerController<M>) -> Result<(), Box<dyn Error>> {
+pub fn run_ui<M: MusicLoader, P: FolderPlaylistLoader<M>>(
+    player: FeusicPlayerController<M>,
+    playlist_loader: P,
+) -> Result<(), Box<dyn Error>> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1024.0, 768.0])
@@ -58,6 +84,7 @@ pub fn run_ui<M: MusicLoader>(player: FeusicPlayerController<M>) -> Result<(), B
         Box::new(|_| {
             Ok(Box::new(FeusicEguiApp {
                 player,
+                playlist_loader,
                 pixel_per_point: 2.0,
             }))
         }),
