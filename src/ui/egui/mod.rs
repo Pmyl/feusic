@@ -4,9 +4,11 @@ use crate::core::{
     feusic::loader::MusicLoader, player::controller::FeusicPlayerController,
     playlist::loader::FolderPlaylistLoader,
 };
-use std::{error::Error, time::Duration};
+use std::error::Error;
 
-mod view;
+mod controls;
+mod extras;
+mod playlist;
 
 const TITLE: &str = "Feusic Player";
 
@@ -23,46 +25,19 @@ impl<M: MusicLoader, P: FolderPlaylistLoader<M>> eframe::App for FeusicEguiApp<M
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_pixels_per_point(self.pixel_per_point);
-        egui::TopBottomPanel::bottom("Feusic Player").show(ctx, |ui| {
+        egui::TopBottomPanel::top("Size controls").show(ctx, |ui| {
             ui.add(Slider::new(&mut self.pixel_per_point, 1.0..=4.0));
         });
+        egui::TopBottomPanel::top("Menu").show(ctx, |ui| {
+            extras::render(ui, &self.player, &self.playlist_loader);
+        });
+        egui::TopBottomPanel::bottom("Player controls").show(ctx, |ui| {
+            controls::render(ui, &self.player);
+            ui.add_space(5.0);
+        });
         egui::CentralPanel::default().show(ctx, |ui| {
-            egui::Window::new("Controls")
-                .title_bar(false)
-                .default_width(ui.available_width() * 0.8)
-                .default_pos((ui.available_width() * 0.1, ui.available_height() * 0.1))
-                .show(&ui.ctx(), |ui| view::render(ui, &self.player));
-
-            egui::Window::new("Extras").show(&ui.ctx(), |ui| {
-                ui.horizontal(|ui| {
-                    if ui.button("Crossfade").clicked() {
-                        self.player.crossfade(Duration::from_millis(1000));
-                    }
-
-                    if ui.button("Remove loop").clicked() {
-                        self.player.remove_loop();
-                    }
-
-                    if ui.button("Select playlist folder…").clicked() {
-                        self.player.pause();
-
-                        if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                            match self.playlist_loader.load(path.to_str().unwrap()) {
-                                Ok(playlist) => {
-                                    self.player.set_playlist(playlist);
-                                    self.player.play();
-                                }
-                                Err(e) => {
-                                    self.player.resume();
-                                    eprintln!("Error loading playlist: {}", e);
-                                }
-                            }
-                        } else {
-                            self.player.resume();
-                        }
-                    }
-                });
-            });
+            ui.heading("Playlist");
+            playlist::render(ui, &self.player);
         });
     }
 }

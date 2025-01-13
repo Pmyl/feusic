@@ -38,6 +38,10 @@ impl<M: MusicLoader> FeusicPlayerController<M> {
         self.action_sender.send(PlayerAction::Play).ok();
     }
 
+    pub fn play_index(&self, index: usize) {
+        self.action_sender.send(PlayerAction::PlayIndex(index)).ok();
+    }
+
     pub fn pause(&self) {
         self.action_sender.send(PlayerAction::Pause).ok();
     }
@@ -86,6 +90,14 @@ impl<M: MusicLoader> FeusicPlayerController<M> {
 
     pub fn music_index(&self) -> usize {
         self.shared_data.music_index()
+    }
+
+    pub fn feusic_names<'a>(&'a self) -> SharedDataRef<'a, Vec<String>> {
+        self.shared_data.feusic_names()
+    }
+
+    pub fn feusic_index(&self) -> usize {
+        self.shared_data.feusic_index()
     }
 
     fn run(&self, mut player: FeusicPlayer<M>) {

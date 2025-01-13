@@ -10,6 +10,8 @@ pub struct PlayerSharedData {
     pub(super) feusic_duration_in_secs: AtomicUsize,
     pub(super) feusic_position_in_secs: AtomicUsize,
     pub(super) is_paused: AtomicBool,
+    pub(super) feusic_names: RwLock<Vec<String>>,
+    pub(super) feusic_index: AtomicUsize,
     pub(super) music_names: RwLock<Vec<String>>,
     pub(super) music_index: AtomicUsize,
 }
@@ -20,6 +22,8 @@ impl Default for PlayerSharedData {
             is_paused: AtomicBool::new(true),
             feusic_duration_in_secs: Default::default(),
             feusic_position_in_secs: Default::default(),
+            feusic_names: Default::default(),
+            feusic_index: Default::default(),
             music_names: Default::default(),
             music_index: Default::default(),
         }
@@ -39,6 +43,16 @@ impl PlayerSharedData {
         self.is_paused.load(Ordering::Relaxed)
     }
 
+    pub fn feusic_names<'a>(&'a self) -> SharedDataRef<'a, Vec<String>> {
+        SharedDataRef {
+            guard: self.feusic_names.read().unwrap(),
+        }
+    }
+
+    pub fn feusic_index(&self) -> usize {
+        self.feusic_index.load(Ordering::Relaxed)
+    }
+
     pub fn music_names<'a>(&'a self) -> SharedDataRef<'a, Vec<String>> {
         SharedDataRef {
             guard: self.music_names.read().unwrap(),
@@ -52,6 +66,8 @@ impl PlayerSharedData {
     pub(super) fn reset(&self) {
         self.feusic_duration_in_secs.store(0, Ordering::Relaxed);
         self.feusic_position_in_secs.store(0, Ordering::Relaxed);
+        self.feusic_names.write().unwrap().clear();
+        self.feusic_index.store(0, Ordering::Relaxed);
         self.is_paused.store(true, Ordering::Relaxed);
         self.music_names.write().unwrap().clear();
         self.music_index.store(0, Ordering::Relaxed);

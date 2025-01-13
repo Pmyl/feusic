@@ -50,6 +50,7 @@ const INSTANT_TWEEN: Tween = Tween {
 #[derive(Debug)]
 pub(super) enum PlayerAction<M: MusicLoader> {
     Play,
+    PlayIndex(usize),
     Pause,
     Resume,
     Stop,
@@ -84,23 +85,25 @@ impl<M: MusicLoader> FeusicPlayer<M> {
     pub fn set_playlist(&mut self, playlist: Vec<Feusic<M>>) {
         self.reset();
         self.feusics = playlist;
+        *self.shared_data.feusic_names.write().unwrap() =
+            self.feusics.iter().map(|f| f.name.clone()).collect();
     }
 
     fn reset(&mut self) {
+        self.shared_data.reset();
         self.feusics.drain(..);
-        self.current_music_index = 0;
-        self.current_feusic_index = 0;
+        self.set_current_music_index(0);
+        self.set_current_feusic_index(0);
         self.timer.stop();
         self.state = PlayerState::Stopped;
         self.musics.drain(..);
-        self.shared_data.reset();
     }
 
     fn play_feusic(&mut self, feusic_index: usize) -> Result<(), Box<dyn Error>> {
         self.musics.drain(..);
 
         self.set_current_music_index(self.feusics[feusic_index].first_music);
-        self.current_feusic_index = feusic_index;
+        self.set_current_feusic_index(feusic_index);
 
         let feusic = &self.feusics[feusic_index];
         let mut tracks = Vec::new();
@@ -296,6 +299,13 @@ impl<M: MusicLoader> FeusicPlayer<M> {
             .store(index, std::sync::atomic::Ordering::Relaxed);
     }
 
+    fn set_current_feusic_index(&mut self, index: usize) {
+        self.current_feusic_index = index;
+        self.shared_data
+            .feusic_index
+            .store(index, std::sync::atomic::Ordering::Relaxed);
+    }
+
     pub fn tick(&mut self) {
         self.shared_data.feusic_position_in_secs.store(
             self.music_position().as_secs() as usize,
@@ -329,6 +339,11 @@ impl<M: MusicLoader> FeusicPlayer<M> {
                 PlayerAction::Play => {
                     if let Err(e) = self.play() {
                         eprintln!("Error playing: {}", e);
+                    }
+                }
+                PlayerAction::PlayIndex(index) => {
+                    if let Err(e) = self.play_feusic(index) {
+                        eprintln!("Error playing index {}: {}", index, e);
                     }
                 }
                 PlayerAction::Pause => {
