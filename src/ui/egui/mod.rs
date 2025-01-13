@@ -1,6 +1,6 @@
 use egui::Slider;
 
-use crate::core::{feusic::loader::MusicLoader, player::controller::FeusicPlayerController};
+use crate::core::player::controller::FeusicPlayerController;
 use std::{error::Error, time::Duration};
 
 mod view;

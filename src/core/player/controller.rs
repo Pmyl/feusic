@@ -1,12 +1,12 @@
 use std::{
-    sync::{mpsc::Sender, Arc, Mutex},
+    sync::{mpsc::Sender, Arc},
     thread,
     time::Duration,
 };
 
 use crate::core::feusic::loader::MusicLoader;
 
-use super::{FeusicPlayer, PlayerAction, PlayerSharedData, SharedDataRef};
+use super::{shared_data::SharedDataRef, FeusicPlayer, PlayerAction, PlayerSharedData};
 
 pub struct FeusicPlayerController {
     action_sender: Sender<PlayerAction>,

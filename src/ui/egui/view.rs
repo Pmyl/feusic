@@ -1,8 +1,8 @@
-use std::{error::Error, time::Duration};
+use std::time::Duration;
 
 use egui::{style::HandleShape, Ui};
 
-use crate::core::{feusic::loader::MusicLoader, player::controller::FeusicPlayerController};
+use crate::core::player::controller::FeusicPlayerController;
 
 pub(super) fn render(ui: &mut Ui, player: &FeusicPlayerController) {
     ui.ctx().request_repaint_after(Duration::from_millis(200));

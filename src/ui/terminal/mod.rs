@@ -1,6 +1,6 @@
 use std::{error::Error, io::Write};
 
-use crate::core::{feusic::loader::MusicLoader, player::controller::FeusicPlayerController};
+use crate::core::player::controller::FeusicPlayerController;
 
 #[allow(unused)]
 pub fn run_ui(player: FeusicPlayerController) -> Result<(), Box<dyn Error>> {

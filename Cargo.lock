@@ -1869,7 +1869,8 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kira"
 version = "0.10.1"
-source = "git+https://github.com/Pmyl/kira?branch=decibel-ease#67e7797ac3cf7a86d53b2a1428de401902962808"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50679def12511d0a12c261ecffad7bf0c39d83250b62a3f905fa52343613ca77"
 dependencies = [
  "atomic-arena",
  "cpal",

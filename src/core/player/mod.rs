@@ -1,5 +1,6 @@
 pub mod controller;
 mod read_seek_source;
+pub mod shared_data;
 mod timer;
 
 use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
@@ -7,11 +8,10 @@ use kira::sound::{FromFileError, PlaybackState};
 use kira::track::{TrackBuilder, TrackHandle};
 use kira::{AudioManager, AudioManagerSettings, Decibels, Easing, StartTime, Tween};
 use read_seek_source::ReadSeekSource;
+use shared_data::PlayerSharedData;
 use std::error::Error;
-use std::ptr::NonNull;
-use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
+use std::sync::Arc;
 use std::time::Duration;
 use timer::FeusicTimer;
 
@@ -29,7 +29,6 @@ pub struct FeusicPlayer<M> {
 
     feusics: Vec<Feusic<M>>,
     current_feusic_index: usize,
-    feusic_duration: Duration,
 
     audio_manager: AudioManager,
     musics: Vec<(TrackHandle, StreamingSoundHandle<FromFileError>)>,
@@ -40,59 +39,6 @@ pub struct FeusicPlayer<M> {
     timer: FeusicTimer,
 
     shared_data: Arc<PlayerSharedData>,
-}
-
-#[derive(Default)]
-pub struct PlayerSharedData {
-    feusic_duration_in_secs: AtomicUsize,
-    feusic_position_in_secs: AtomicUsize,
-    is_paused: AtomicBool,
-    music_names: RwLock<Vec<String>>,
-    music_index: AtomicUsize,
-}
-
-impl PlayerSharedData {
-    fn music_duration(&self) -> Duration {
-        Duration::from_secs(
-            self.feusic_duration_in_secs
-                .load(std::sync::atomic::Ordering::Relaxed) as u64,
-        )
-    }
-
-    fn music_position(&self) -> Duration {
-        Duration::from_secs(
-            self.feusic_position_in_secs
-                .load(std::sync::atomic::Ordering::Relaxed) as u64,
-        )
-    }
-
-    fn paused(&self) -> bool {
-        self.is_paused.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    fn music_names<'a>(&'a self) -> SharedDataRef<'a, Vec<String>> {
-        SharedDataRef {
-            guard: self.music_names.read().unwrap(),
-        }
-    }
-
-    fn music_index(&self) -> usize {
-        self.music_index.load(std::sync::atomic::Ordering::Relaxed)
-    }
-}
-
-pub struct SharedDataRef<'a, T> {
-    guard: RwLockReadGuard<'a, T>,
-}
-
-impl<'a, T> SharedDataRef<'a, T> {
-    fn new(guard: RwLockReadGuard<'a, T>) -> Self {
-        Self { guard }
-    }
-
-    pub fn get(&'a self) -> &'a T {
-        &self.guard
-    }
 }
 
 const INSTANT_TWEEN: Tween = Tween {
@@ -127,7 +73,6 @@ impl<M: MusicLoader> FeusicPlayer<M> {
             action_receiver,
             timer: FeusicTimer::new(action_sender.clone(), 0, Duration::from_secs(0), vec![]),
             state: PlayerState::Stopped,
-            feusic_duration: Duration::from_secs(0),
 
             audio_manager: manager,
             musics: vec![],
@@ -143,12 +88,13 @@ impl<M: MusicLoader> FeusicPlayer<M> {
 
         let feusic = &self.feusics[feusic_index];
         let mut tracks = Vec::new();
+        let mut feusic_duration = Duration::from_secs(0);
         for music in &self.feusics[feusic_index].musics {
             let mut track = self.audio_manager.add_sub_track(TrackBuilder::default())?;
             let loaded_music = music.loader.read()?;
             let media_source = ReadSeekSource::new(loaded_music.reader);
             let sound_data = StreamingSoundData::from_media_source(media_source)?;
-            self.feusic_duration = sound_data.duration();
+            feusic_duration = sound_data.duration();
 
             let mut handle = track.play(sound_data)?;
             if let Some(looping) = &feusic.looping {
@@ -174,6 +120,10 @@ impl<M: MusicLoader> FeusicPlayer<M> {
         );
         *self.shared_data.music_names.write().unwrap() =
             feusic.musics.iter().map(|m| m.name.clone()).collect();
+        self.shared_data.feusic_duration_in_secs.store(
+            feusic_duration.as_secs() as usize,
+            std::sync::atomic::Ordering::Relaxed,
+        );
         self.play_internal();
 
         Ok(())
@@ -296,6 +246,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
                             Decibels::IDENTITY,
                             Tween {
                                 duration,
+                                easing: Easing::InPowf(0.15),
                                 ..Default::default()
                             },
                         )
@@ -307,6 +258,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
                             Decibels::SILENCE,
                             Tween {
                                 duration,
+                                easing: Easing::OutPowf(0.15),
                                 ..Default::default()
                             },
                         )
@@ -329,11 +281,6 @@ impl<M: MusicLoader> FeusicPlayer<M> {
     }
 
     pub fn tick(&mut self) {
-        self.shared_data.feusic_duration_in_secs.store(
-            self.feusic_duration.as_secs() as usize,
-            std::sync::atomic::Ordering::Relaxed,
-        );
-
         self.shared_data.feusic_position_in_secs.store(
             self.music_position().as_secs() as usize,
             std::sync::atomic::Ordering::Relaxed,
@@ -409,10 +356,6 @@ impl<M: MusicLoader> FeusicPlayer<M> {
             .get(0)
             .map(|(_, handle)| Duration::from_secs_f64(handle.position()))
             .unwrap_or(Duration::from_secs(0))
-    }
-
-    pub fn music_duration(&self) -> Duration {
-        self.feusic_duration
     }
 
     pub fn paused(&self) -> bool {
