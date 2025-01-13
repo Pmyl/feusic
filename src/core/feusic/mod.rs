@@ -70,7 +70,7 @@ impl Feusic<FeusicMusicLoader> {
 
         Self::from(
             feusic_path.clone(),
-            musics_names,
+            &musics_names,
             feusic_toml,
             |_, music_name| FeusicMusicLoader::ZipFeusic {
                 feusic_path: feusic_path.clone(),
@@ -86,6 +86,7 @@ impl Feusic<FeusicMusicLoader> {
         let files =
             fs::read_dir(folder_path).map_err(|e| format!("Folder path should exist. {}", e))?;
 
+        let mut musics_paths = vec![];
         let mut musics_names = vec![];
         let mut feusic_toml_file = None;
 
@@ -99,7 +100,8 @@ impl Feusic<FeusicMusicLoader> {
 
             if let Some(ext) = extension {
                 if ext == "mp3" {
-                    musics_names.push(path.to_str().unwrap().to_string());
+                    musics_paths.push(path.to_str().unwrap().to_string());
+                    musics_names.push(path.file_name().unwrap().to_str().unwrap().to_string());
                 } else if let Some(name) = path.file_name() {
                     if name == "feusic.toml" {
                         feusic_toml_file = Some(File::open(&entry.path())?);
@@ -120,9 +122,9 @@ impl Feusic<FeusicMusicLoader> {
             .unwrap()
             .to_string();
 
-        Self::from(feusic_path, musics_names, feusic_toml, |_, music_name| {
+        Self::from(feusic_path, &musics_names, feusic_toml, |music_index, _| {
             FeusicMusicLoader::FolderFeusic {
-                music_path: music_name,
+                music_path: musics_paths[music_index].clone(),
             }
         })
         .inspect(|feusic| println!("Loaded musics {:?}", feusic.musics))
@@ -130,7 +132,7 @@ impl Feusic<FeusicMusicLoader> {
 
     fn from<F: Fn(usize, String) -> FeusicMusicLoader>(
         feusic_name: String,
-        musics_names: Vec<String>,
+        musics_names: &Vec<String>,
         feusic_toml: String,
         music_loader_factory: F,
     ) -> Result<Self, Box<dyn Error>> {

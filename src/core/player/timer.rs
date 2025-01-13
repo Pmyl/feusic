@@ -25,19 +25,19 @@ impl FeusicTimer {
         sender: Sender<PlayerAction>,
         start: usize,
         duration: Duration,
-        timing: Vec<Vec<Next>>,
+        timings: Vec<Vec<Next>>,
     ) -> Self {
-        println!("Start timer");
+        println!("New timer");
 
-        let running = !timing.is_empty();
+        let running = !timings.is_empty();
 
         if running {
             let mut timer = Self {
                 sender,
                 timing_index: start,
-                case_index: Self::find_next_case_index(&timing[start]),
+                case_index: Self::find_next_case_index(&timings[start]),
                 running,
-                timings: timing,
+                timings,
                 change_time: Instant::now(),
                 last_tick: Instant::now(),
                 time_left_secs: duration.as_secs_f32(),
@@ -56,6 +56,23 @@ impl FeusicTimer {
                 last_tick: Instant::now(),
                 time_left_secs: duration.as_secs_f32(),
             }
+        }
+    }
+
+    pub fn reset(&mut self, start: usize, duration: Duration, timings: Vec<Vec<Next>>) {
+        println!("Reset timer");
+
+        self.running = !timings.is_empty();
+
+        if self.running {
+            self.case_index = Self::find_next_case_index(&timings[start]);
+            self.timing_index = start;
+            self.timings = timings;
+            self.change_time = Instant::now();
+            self.last_tick = Instant::now();
+            self.time_left_secs = duration.as_secs_f32();
+
+            self.wait_until_next_change();
         }
     }
 

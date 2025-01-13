@@ -6,24 +6,24 @@ use std::{
 
 use crate::core::feusic::loader::MusicLoader;
 
-use super::{FeusicPlayer, PlayerAction};
+use super::{FeusicPlayer, PlayerAction, PlayerSharedData, SharedDataRef};
 
-pub struct FeusicPlayerController<M> {
+pub struct FeusicPlayerController {
     action_sender: Sender<PlayerAction>,
-    player: Arc<Mutex<FeusicPlayer<M>>>,
+    shared_data: Arc<PlayerSharedData>,
 }
 
-impl<M: MusicLoader> FeusicPlayerController<M> {
-    pub fn new(player: FeusicPlayer<M>) -> Self {
+impl FeusicPlayerController {
+    pub fn new<M: MusicLoader>(player: FeusicPlayer<M>) -> Self {
         let action_sender = player.action_sender.clone();
-        let player = Arc::new(Mutex::new(player));
+        let shared_data = player.shared_data();
 
         let controller = Self {
-            player,
+            shared_data,
             action_sender,
         };
 
-        controller.run();
+        controller.run(player);
 
         controller
     }
@@ -63,28 +63,28 @@ impl<M: MusicLoader> FeusicPlayerController<M> {
     }
 
     pub fn music_position(&self) -> Duration {
-        let player = self.player.lock().unwrap();
-        player.music_position()
+        self.shared_data.music_position()
     }
 
     pub fn music_duration(&self) -> Duration {
-        let player = self.player.lock().unwrap();
-        player.music_duration()
+        self.shared_data.music_duration()
     }
 
     pub fn paused(&self) -> bool {
-        let player = self.player.lock().unwrap();
-        player.paused()
+        self.shared_data.paused()
     }
 
-    fn run(&self) {
-        let player = self.player.clone();
+    pub fn music_names<'a>(&'a self) -> SharedDataRef<'a, Vec<String>> {
+        self.shared_data.music_names()
+    }
 
+    pub fn music_index(&self) -> usize {
+        self.shared_data.music_index()
+    }
+
+    fn run<M: MusicLoader>(&self, mut player: FeusicPlayer<M>) {
         thread::spawn(move || loop {
-            let mut player = player.lock().unwrap();
             player.tick();
-            drop(player);
-
             thread::sleep(Duration::from_millis(50));
         });
     }
