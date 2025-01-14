@@ -4,7 +4,7 @@ use crate::core::{
     feusic::loader::MusicLoader, player::controller::FeusicPlayerController,
     playlist::loader::FolderPlaylistLoader,
 };
-use std::{error::Error, fs::File};
+use std::error::Error;
 
 use super::{Preferences, PreferencesHandler};
 
@@ -57,6 +57,7 @@ impl<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler> eframe:
 pub fn run_ui<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler>(
     player: FeusicPlayerController<M>,
     playlist_loader: P,
+    preferences: Preferences,
     preferences_handler: PH,
 ) -> Result<(), Box<dyn Error>> {
     let options = eframe::NativeOptions {
@@ -65,12 +66,6 @@ pub fn run_ui<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler
             .with_transparent(true),
         ..Default::default()
     };
-
-    let preferences = preferences_handler.load_preferences();
-    if let Some(ref playlist_path) = preferences.last_playlist_path {
-        player.set_playlist(playlist_loader.load(playlist_path.as_str())?);
-        player.play();
-    }
 
     eframe::run_native(
         TITLE,

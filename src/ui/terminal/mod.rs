@@ -2,7 +2,6 @@ use std::{error::Error, io::Write};
 
 use crate::core::{feusic::loader::MusicLoader, player::controller::FeusicPlayerController};
 
-#[allow(unused)]
 pub fn run_ui<M: MusicLoader>(player: FeusicPlayerController<M>) -> Result<(), Box<dyn Error>> {
     loop {
         println!("Commands: pause, resume, stop, loop, crossfade, next, exit");
