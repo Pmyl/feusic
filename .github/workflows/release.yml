@@ -22,7 +22,7 @@ jobs:
           toolchain: stable
       - name: Install dependencies on Ubuntu
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libc6
 
       - uses: Swatinem/rust-cache@v2
       - name: Build
