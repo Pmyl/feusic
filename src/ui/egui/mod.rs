@@ -4,7 +4,9 @@ use crate::core::{
     feusic::loader::MusicLoader, player::controller::FeusicPlayerController,
     playlist::loader::FolderPlaylistLoader,
 };
-use std::error::Error;
+use std::{error::Error, fs::File};
+
+use super::{Preferences, PreferencesHandler};
 
 mod controls;
 mod extras;
@@ -12,13 +14,17 @@ mod playlist;
 
 const TITLE: &str = "Feusic Player";
 
-struct FeusicEguiApp<M: MusicLoader, P: FolderPlaylistLoader<M>> {
+struct FeusicEguiApp<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler> {
     player: FeusicPlayerController<M>,
     playlist_loader: P,
     pixel_per_point: f32,
+    preferences_handler: PH,
+    preferences: Preferences,
 }
 
-impl<M: MusicLoader, P: FolderPlaylistLoader<M>> eframe::App for FeusicEguiApp<M, P> {
+impl<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler> eframe::App
+    for FeusicEguiApp<M, P, PH>
+{
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         egui::Rgba::TRANSPARENT.to_array()
     }
@@ -29,7 +35,13 @@ impl<M: MusicLoader, P: FolderPlaylistLoader<M>> eframe::App for FeusicEguiApp<M
             ui.add(Slider::new(&mut self.pixel_per_point, 1.0..=4.0));
         });
         egui::TopBottomPanel::top("Menu").show(ctx, |ui| {
-            extras::render(ui, &self.player, &self.playlist_loader);
+            extras::render(
+                ui,
+                &self.player,
+                &self.playlist_loader,
+                &mut self.preferences,
+                &self.preferences_handler,
+            );
         });
         egui::TopBottomPanel::bottom("Player controls").show(ctx, |ui| {
             controls::render(ui, &self.player);
@@ -42,9 +54,10 @@ impl<M: MusicLoader, P: FolderPlaylistLoader<M>> eframe::App for FeusicEguiApp<M
     }
 }
 
-pub fn run_ui<M: MusicLoader, P: FolderPlaylistLoader<M>>(
+pub fn run_ui<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler>(
     player: FeusicPlayerController<M>,
     playlist_loader: P,
+    preferences_handler: PH,
 ) -> Result<(), Box<dyn Error>> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -52,6 +65,12 @@ pub fn run_ui<M: MusicLoader, P: FolderPlaylistLoader<M>>(
             .with_transparent(true),
         ..Default::default()
     };
+
+    let preferences = preferences_handler.load_preferences();
+    if let Some(ref playlist_path) = preferences.last_playlist_path {
+        player.set_playlist(playlist_loader.load(playlist_path.as_str())?);
+        player.play();
+    }
 
     eframe::run_native(
         TITLE,
@@ -61,6 +80,8 @@ pub fn run_ui<M: MusicLoader, P: FolderPlaylistLoader<M>>(
                 player,
                 playlist_loader,
                 pixel_per_point: 2.0,
+                preferences,
+                preferences_handler,
             }))
         }),
     )?;

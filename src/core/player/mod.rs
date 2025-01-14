@@ -164,7 +164,9 @@ impl<M: MusicLoader> FeusicPlayer<M> {
     }
 
     fn play(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.musics.is_empty() {
+        if self.feusics.is_empty() {
+            println!("Attempted to play with empty playlist");
+        } else if self.musics.is_empty() {
             self.play_feusic_by_name(&self.feusics[0].name.clone())?;
         } else {
             self.play_internal();
@@ -197,7 +199,6 @@ impl<M: MusicLoader> FeusicPlayer<M> {
         for (_, handle) in self.musics.iter_mut() {
             handle.seek_to(duration.as_secs_f64());
         }
-
         println!("Seeked to {:?}", duration);
     }
 
@@ -210,9 +211,9 @@ impl<M: MusicLoader> FeusicPlayer<M> {
 
     fn pause(&mut self) {
         for (_, handle) in self.musics.iter_mut() {
-            println!("Pausing audio.");
             handle.pause(INSTANT_TWEEN);
         }
+        println!("Paused audio.");
         self.state = PlayerState::Paused;
     }
 
@@ -222,23 +223,33 @@ impl<M: MusicLoader> FeusicPlayer<M> {
 
     fn stop(&mut self) {
         for (_, handle) in self.musics.iter_mut() {
-            println!("Stopping audio.");
             handle.stop(INSTANT_TWEEN);
         }
+        println!("Stopped audio.");
         self.state = PlayerState::Stopped;
     }
 
     fn next(&mut self) -> Result<(), Box<dyn Error>> {
-        self.play_feusic_by_name(
-            self.feusics[(self.current_feusic_index + 1) % self.feusics.len()]
-                .name
-                .clone()
-                .as_str(),
-        )
+        if self.feusics.is_empty() {
+            println!("Attempted to go next with empty playlist");
+            Ok(())
+        } else {
+            self.play_feusic_by_name(
+                self.feusics[(self.current_feusic_index + 1) % self.feusics.len()]
+                    .name
+                    .clone()
+                    .as_str(),
+            )
+        }
     }
 
     fn crossfade_next(&mut self, duration: Duration) -> Result<(), Box<dyn Error>> {
-        self.crossfade_with(duration, (self.current_music_index + 1) % self.musics.len())
+        if self.musics.is_empty() {
+            println!("Attempted to crossfade with no feusic playing");
+            Ok(())
+        } else {
+            self.crossfade_with(duration, (self.current_music_index + 1) % self.musics.len())
+        }
     }
 
     fn crossfade_with(

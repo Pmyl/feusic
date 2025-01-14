@@ -2,15 +2,20 @@ use std::time::Duration;
 
 use egui::Ui;
 
-use crate::core::{
-    feusic::loader::MusicLoader, player::controller::FeusicPlayerController,
-    playlist::loader::FolderPlaylistLoader,
+use crate::{
+    core::{
+        feusic::loader::MusicLoader, player::controller::FeusicPlayerController,
+        playlist::loader::FolderPlaylistLoader,
+    },
+    ui::{Preferences, PreferencesHandler},
 };
 
 pub(super) fn render<M: MusicLoader>(
     ui: &mut Ui,
     player: &FeusicPlayerController<M>,
     playlist_loader: &impl FolderPlaylistLoader<M>,
+    preferences: &mut Preferences,
+    preferences_handler: &impl PreferencesHandler,
 ) {
     ui.horizontal(|ui| {
         if ui.button("Crossfade").clicked() {
@@ -27,6 +32,9 @@ pub(super) fn render<M: MusicLoader>(
             if let Some(path) = rfd::FileDialog::new().pick_folder() {
                 match playlist_loader.load(path.to_str().unwrap()) {
                     Ok(playlist) => {
+                        preferences.last_playlist_path = Some(path.to_str().unwrap().to_string());
+                        preferences_handler.save_preferences(preferences);
+
                         player.set_playlist(playlist);
                         player.play();
                     }
