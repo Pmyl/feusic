@@ -45,11 +45,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Download Ubuntu build artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: build-artifacts-ubuntu-latest
-          path: ubuntu/
       - name: Download Windows build artifacts
         uses: actions/download-artifact@v3
         with:
