@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [windows-latest]
 
     steps:
       - uses: actions/checkout@v2
@@ -20,30 +20,16 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - name: Install dependencies on Ubuntu
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev musl-tools
-      - name: Install rust dependencies on Ubuntu
-        if: runner.os == 'Linux'
-        run: rustup component add rust-std-x86_64-unknown-linux-musl
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build Linux
-        if: runner.os == 'Linux'
-        run: cargo build --release --verbose --target x86_64-unknown-linux-musl
       - name: Build Windows
-        if: runner.os == 'Windows'
         run: cargo build --release --verbose
 
       - name: Run tests
         run: cargo test --release --verbose
 
-      - name: Zip binaries on Ubuntu
-        if: runner.os == 'Linux'
-        run: zip -j feusic_ubuntu.zip target/release/feusic
       - name: Zip binaries on Windows
-        if: runner.os == 'Windows'
         run: powershell Compress-Archive -Path target/release/feusic.exe -DestinationPath feusic_windows.zip
 
       - name: Upload build artifacts
@@ -51,7 +37,6 @@ jobs:
         with:
           name: build-artifacts-${{ matrix.os }}
           path: |
-            feusic_ubuntu.zip
             feusic_windows.zip
 
   release:
@@ -70,14 +55,6 @@ jobs:
         with:
           name: build-artifacts-windows-latest
           path: windows/
-      - name: Create Release for Ubuntu
-        uses: softprops/action-gh-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: ubuntu/feusic_ubuntu.zip
-          name: Release
       - name: Create Release for Windows
         uses: softprops/action-gh-release@v1
         env:
