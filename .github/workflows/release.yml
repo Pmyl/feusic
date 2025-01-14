@@ -22,7 +22,7 @@ jobs:
           toolchain: stable
       - name: Install dependencies on Ubuntu
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev musl-tools
       - name: Install rust dependencies on Ubuntu
         if: runner.os == 'Linux'
         run: rustup component add rust-std-x86_64-unknown-linux-musl
