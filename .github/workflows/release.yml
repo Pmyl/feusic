@@ -51,12 +51,19 @@ jobs:
         with:
           name: build-artifacts-windows-latest
           path: windows/
-      - name: Create Release
+      - name: Create Release for Ubuntu
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
-          files: |
-            ubuntu/*
-            windows/*
+          files: ubuntu/*
+          name: Ubuntu Release
+      - name: Create Release for Windows
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: windows/*
+          name: Windows Release
