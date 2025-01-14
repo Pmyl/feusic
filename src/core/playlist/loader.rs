@@ -28,20 +28,23 @@ impl FolderPlaylistLoader<FeusicMusicLoader> for BasicFolderPlaylistLoader {
                     .ok()
             })
             .inspect(|file| println!("Checking file {:?}", file.path()))
-            .filter_map(|file| match file.path().extension() {
-                Some(ext) if ext == "feusic" => Some(file),
-                _ => None,
-            })
             .filter_map(|entry| {
                 let path = entry.path();
+                let extension = path.extension()?.to_str()?;
 
-                if path.is_dir() {
-                    Some(Feusic::from_feusic_folder(&path))
-                } else {
-                    File::open(&path)
-                        .inspect_err(|e| eprintln!("Skipping opening file because {}", e))
-                        .ok()
-                        .map(|file| Feusic::from_feusic_zip_file(&path, &file))
+                if extension == "feusic" && path.is_dir() {
+                    return Some(Feusic::from_feusic_folder(&path));
+                }
+
+                match extension {
+                    "feusic" => Some(Feusic::from_feusic_zip_file(
+                        &path,
+                        &File::open(&path)
+                            .inspect_err(|e| eprintln!("Skipping opening file because {}", e))
+                            .ok()?,
+                    )),
+                    "mp3" | "wav" | "ogg" => Some(Feusic::from_audio_file(&path)),
+                    _ => return None,
                 }
             })
             .collect::<Result<Vec<_>, _>>()

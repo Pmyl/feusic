@@ -18,7 +18,7 @@ pub struct Feusic<M> {
     pub name: String,
     pub musics: Vec<Music<M>>,
     pub first_music: usize,
-    pub duration: Duration,
+    pub duration: Option<Duration>,
     pub looping: Option<Looping>,
 }
 
@@ -68,7 +68,7 @@ impl Feusic<FeusicMusicLoader> {
 
         let feusic_path = file_path.file_name().unwrap().to_str().unwrap().to_string();
 
-        Self::from(
+        Self::from_feusic(
             feusic_path.clone(),
             &musics_names,
             feusic_toml,
@@ -122,7 +122,7 @@ impl Feusic<FeusicMusicLoader> {
             .unwrap()
             .to_string();
 
-        Self::from(feusic_path, &musics_names, feusic_toml, |music_index, _| {
+        Self::from_feusic(feusic_path, &musics_names, feusic_toml, |music_index, _| {
             FeusicMusicLoader::FolderFeusic {
                 music_path: musics_paths[music_index].clone(),
             }
@@ -130,7 +130,29 @@ impl Feusic<FeusicMusicLoader> {
         .inspect(|feusic| println!("Loaded musics {:?}", feusic.musics))
     }
 
-    fn from<F: Fn(usize, String) -> FeusicMusicLoader>(
+    pub fn from_audio_file(file_path: &PathBuf) -> Result<Self, Box<dyn Error>> {
+        println!("Parsing {:?}", file_path);
+        let filename = file_path.file_name().unwrap().to_str().unwrap().to_string();
+
+        Ok(Self {
+            first_music: 0,
+            // duration and looping should be grouped
+            duration: None,
+            looping: None,
+            //
+            name: filename.clone(),
+            musics: vec![Music {
+                name: filename,
+                next_choices: vec![],
+                loader: FeusicMusicLoader::FolderFeusic {
+                    music_path: file_path.to_str().unwrap().to_string(),
+                },
+            }],
+        })
+        .inspect(|feusic| println!("Loaded musics {:?}", feusic.musics))
+    }
+
+    fn from_feusic<F: Fn(usize, String) -> FeusicMusicLoader>(
         feusic_name: String,
         musics_names: &Vec<String>,
         feusic_toml: String,
@@ -143,7 +165,7 @@ impl Feusic<FeusicMusicLoader> {
 
         Ok(Self {
             name: feusic_name,
-            duration: Duration::from_secs(config.duration),
+            duration: Some(Duration::from_secs(config.duration)),
             looping: match (config.loop_start, config.loop_end) {
                 (Some(start), Some(end)) => Some(Looping { start, end }),
                 _ => None,

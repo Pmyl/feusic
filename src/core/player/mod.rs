@@ -73,7 +73,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
             current_feusic_index: 0,
             action_sender: action_sender.clone(),
             action_receiver,
-            timer: FeusicTimer::new(action_sender.clone(), 0, Duration::from_secs(0), vec![]),
+            timer: FeusicTimer::new(action_sender.clone(), 0, None, vec![]),
             state: PlayerState::Stopped,
 
             audio_manager: manager,
@@ -118,7 +118,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
             let mut handle = track.play(sound_data)?;
             if let Some(looping) = &feusic.looping {
                 handle.set_loop_region(looping.start..looping.end);
-            } else {
+            } else if let Some(_) = &feusic.duration {
                 handle.set_loop_region(..);
             }
             handle.pause(INSTANT_TWEEN);
