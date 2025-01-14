@@ -33,7 +33,6 @@ impl<M: MusicLoader> FeusicTimer<M> {
         println!("New timer");
 
         let running = has_timings(&timings);
-        println!("Running timer");
 
         if running {
             let mut timer = Self {

@@ -15,6 +15,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use timer::FeusicTimer;
 
+use crate::core::feusic::Looping;
+
 use super::feusic::loader::MusicLoader;
 use super::feusic::Feusic;
 
@@ -116,10 +118,14 @@ impl<M: MusicLoader> FeusicPlayer<M> {
             feusic_duration = sound_data.duration();
 
             let mut handle = track.play(sound_data)?;
-            if let Some(looping) = &feusic.looping {
-                handle.set_loop_region(looping.start..looping.end);
-            } else if let Some(_) = &feusic.duration {
-                handle.set_loop_region(..);
+            match &feusic.looping {
+                Looping::Partial { start, end, .. } => {
+                    handle.set_loop_region(*start..*end);
+                }
+                Looping::Whole(_) => {
+                    handle.set_loop_region(..);
+                }
+                _ => {}
             }
             handle.pause(INSTANT_TWEEN);
 
@@ -130,7 +136,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
         self.musics = tracks;
         self.timer.reset(
             self.current_music_index,
-            feusic.duration,
+            feusic.looping.duration(),
             feusic
                 .musics
                 .iter()

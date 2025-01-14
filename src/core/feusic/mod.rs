@@ -18,14 +18,18 @@ pub struct Feusic<M> {
     pub name: String,
     pub musics: Vec<Music<M>>,
     pub first_music: usize,
-    pub duration: Option<Duration>,
-    pub looping: Option<Looping>,
+    pub looping: Looping,
 }
 
 #[derive(Debug)]
-pub struct Looping {
-    pub start: f64,
-    pub end: f64,
+pub enum Looping {
+    Whole(Duration),
+    Partial {
+        duration: Duration,
+        start: f64,
+        end: f64,
+    },
+    None,
 }
 
 #[derive(Debug)]
@@ -136,10 +140,7 @@ impl Feusic<FeusicMusicLoader> {
 
         Ok(Self {
             first_music: 0,
-            // duration and looping should be grouped
-            duration: None,
-            looping: None,
-            //
+            looping: Looping::None,
             name: filename.clone(),
             musics: vec![Music {
                 name: filename,
@@ -165,10 +166,13 @@ impl Feusic<FeusicMusicLoader> {
 
         Ok(Self {
             name: feusic_name,
-            duration: Some(Duration::from_secs(config.duration)),
             looping: match (config.loop_start, config.loop_end) {
-                (Some(start), Some(end)) => Some(Looping { start, end }),
-                _ => None,
+                (Some(start), Some(end)) => Looping::Partial {
+                    duration: Duration::from_secs(config.duration),
+                    start,
+                    end,
+                },
+                _ => Looping::Whole(Duration::from_secs(config.duration)),
             },
             first_music: parsed_timing.first_music_index,
             musics: parsed_timing
@@ -384,5 +388,15 @@ fn read_number(chars: &mut Peekable<Chars>) -> Result<usize, Box<dyn Error>> {
         Ok(n)
     } else {
         Err("Expected number".into())
+    }
+}
+
+impl Looping {
+    pub fn duration(&self) -> Option<Duration> {
+        match self {
+            Looping::Whole(duration) => Some(*duration),
+            Looping::Partial { duration, .. } => Some(*duration),
+            Looping::None => None,
+        }
     }
 }
