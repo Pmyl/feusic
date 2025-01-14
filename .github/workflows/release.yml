@@ -28,7 +28,7 @@ jobs:
       - name: Run tests
         run: cargo test --release --verbose
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: build-artifacts-${{ matrix.os }}
           path: target/release/
@@ -40,12 +40,12 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Download Ubuntu build artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: build-artifacts-ubuntu-latest
           path: ubuntu/
       - name: Download Windows build artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: build-artifacts-windows-latest
           path: windows/
