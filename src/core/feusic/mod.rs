@@ -286,33 +286,42 @@ impl<'a> Iterator for ParsedTimingMusicIterator<'a> {
 
         let mut choices_with_probability = 0;
         loop {
-            match self.chars.next() {
-                Some('w') => {
-                    let wait_lower = match read_number(&mut self.chars) {
-                        Ok(number) => number,
-                        Err(e) => return Some(Err(e)),
-                    };
-                    let wait_higher = match self.chars.peek() {
-                        Some('-') => {
-                            self.chars.next();
-                            match read_number(&mut self.chars) {
-                                Ok(number) => number,
-                                Err(e) => return Some(Err(e)),
+            loop {
+                match self.chars.next() {
+                    Some('w') => {
+                        let wait_lower = match read_number(&mut self.chars) {
+                            Ok(number) => number,
+                            Err(e) => return Some(Err(e)),
+                        };
+                        let wait_higher = match self.chars.peek() {
+                            Some('-') => {
+                                self.chars.next();
+                                match read_number(&mut self.chars) {
+                                    Ok(number) => number,
+                                    Err(e) => return Some(Err(e)),
+                                }
                             }
-                        }
-                        _ => wait_lower,
-                    };
-                    wait = Some((wait_lower, wait_higher));
-                }
-                Some('p') => {
-                    choices_with_probability += 1;
+                            _ => wait_lower,
+                        };
+                        wait = Some((wait_lower, wait_higher));
+                    }
+                    Some('p') => {
+                        choices_with_probability += 1;
 
-                    probability_weight = Some(match read_number(&mut self.chars) {
-                        Ok(number) => number,
-                        Err(e) => return Some(Err(e)),
-                    });
+                        probability_weight = Some(match read_number(&mut self.chars) {
+                            Ok(number) => number,
+                            Err(e) => return Some(Err(e)),
+                        });
+                    }
+                    _ => return Some(Err("Expected either 'w' or 'p'".into())),
                 }
-                _ => return Some(Err("Expected either 'w' or 'p'".into())),
+
+                match self.chars.peek() {
+                    Some(';') => {
+                        self.chars.next();
+                    }
+                    _ => break,
+                }
             }
 
             match self.chars.next() {
@@ -398,5 +407,61 @@ impl Looping {
             Looping::Partial { duration, .. } => Some(*duration),
             Looping::None => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn parse_complex_timing() {
+        let timing = "s0|0:w120000-180000;p8:1/w2000-5000;p2:4|1:w10000-20000;p1:2/w10000-20000;p1:3/w10000-20000;p1:1|2:w5000-10000:1|3:w5000-10000:1|4:w120000-180000:1";
+        let parsed_timing = ParsedTiming::try_from(timing).unwrap();
+
+        let timing_musics: Vec<_> = parsed_timing
+            .timing_musics
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(timing_musics.len(), 5);
+
+        assert_eq!(timing_musics[0].music_index, 0);
+        assert_eq!(timing_musics[0].choices.len(), 2);
+        assert_eq!(timing_musics[0].choices[0].probability_weight, 8);
+        assert_eq!(timing_musics[0].choices[0].target_music_index, 1);
+        assert_eq!(timing_musics[0].choices[0].wait, (120000, 180000));
+        assert_eq!(timing_musics[0].choices[1].probability_weight, 2);
+        assert_eq!(timing_musics[0].choices[1].target_music_index, 4);
+        assert_eq!(timing_musics[0].choices[1].wait, (2000, 5000));
+
+        assert_eq!(timing_musics[1].music_index, 1);
+        assert_eq!(timing_musics[1].choices.len(), 3);
+        assert_eq!(timing_musics[1].choices[0].probability_weight, 1);
+        assert_eq!(timing_musics[1].choices[0].target_music_index, 2);
+        assert_eq!(timing_musics[1].choices[0].wait, (10000, 20000));
+        assert_eq!(timing_musics[1].choices[1].probability_weight, 1);
+        assert_eq!(timing_musics[1].choices[1].target_music_index, 3);
+        assert_eq!(timing_musics[1].choices[1].wait, (10000, 20000));
+        assert_eq!(timing_musics[1].choices[2].probability_weight, 1);
+        assert_eq!(timing_musics[1].choices[2].target_music_index, 1);
+        assert_eq!(timing_musics[1].choices[2].wait, (10000, 20000));
+
+        assert_eq!(timing_musics[2].music_index, 2);
+        assert_eq!(timing_musics[2].choices.len(), 1);
+        assert_eq!(timing_musics[2].choices[0].probability_weight, 100);
+        assert_eq!(timing_musics[2].choices[0].target_music_index, 1);
+        assert_eq!(timing_musics[2].choices[0].wait, (5000, 10000));
+
+        assert_eq!(timing_musics[3].music_index, 3);
+        assert_eq!(timing_musics[3].choices.len(), 1);
+        assert_eq!(timing_musics[3].choices[0].probability_weight, 100);
+        assert_eq!(timing_musics[3].choices[0].target_music_index, 1);
+        assert_eq!(timing_musics[3].choices[0].wait, (5000, 10000));
+
+        assert_eq!(timing_musics[4].music_index, 4);
+        assert_eq!(timing_musics[4].choices.len(), 1);
+        assert_eq!(timing_musics[4].choices[0].probability_weight, 100);
+        assert_eq!(timing_musics[4].choices[0].target_music_index, 1);
+        assert_eq!(timing_musics[4].choices[0].wait, (120000, 180000));
     }
 }
