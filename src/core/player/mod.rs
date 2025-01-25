@@ -114,7 +114,8 @@ impl<M: MusicLoader> FeusicPlayer<M> {
             let mut track = self.audio_manager.add_sub_track(TrackBuilder::default())?;
             let loaded_music = music.loader.read()?;
             let media_source = ReadSeekSource::new(loaded_music.reader);
-            let sound_data = StreamingSoundData::from_media_source(media_source)?;
+            let sound_data = StreamingSoundData::from_media_source(media_source)
+                .map_err(|e| format!("When getting streaming sound data: {}", e))?;
             feusic_duration = sound_data.duration();
 
             let mut handle = track.play(sound_data)?;

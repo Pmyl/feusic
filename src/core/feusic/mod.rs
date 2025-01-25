@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    fs::{self, File},
+    fs::{self, DirEntry, File},
     io::Read,
     iter::Peekable,
     path::PathBuf,
@@ -87,17 +87,19 @@ impl Feusic<FeusicMusicLoader> {
     pub fn from_feusic_folder(folder_path: &PathBuf) -> Result<Self, Box<dyn Error>> {
         println!("Parsing folder {:?}", folder_path);
 
-        let files =
-            fs::read_dir(folder_path).map_err(|e| format!("Folder path should exist. {}", e))?;
+        let mut files = fs::read_dir(folder_path)
+            .map_err(|e| format!("Folder path should exist. {}", e))?
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.path().is_file())
+            .collect::<Vec<DirEntry>>();
+
+        files.sort_by_key(|file| file.path());
 
         let mut musics_paths = vec![];
         let mut musics_names = vec![];
         let mut feusic_toml_file = None;
 
-        for entry in files
-            .filter_map(|entry| entry.ok())
-            .filter(|entry| entry.path().is_file())
-        {
+        for entry in files {
             let path = entry.path();
             let extension = path.extension();
             println!("Checking {:?} in folder {:?}", path, folder_path);

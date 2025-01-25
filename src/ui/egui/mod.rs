@@ -1,4 +1,4 @@
-use egui::Slider;
+use egui::{IconData, Slider};
 
 use crate::core::{
     feusic::loader::MusicLoader, player::controller::FeusicPlayerController,
@@ -13,6 +13,7 @@ mod extras;
 mod playlist;
 
 const TITLE: &str = "Feusic Player";
+const ICON: &[u8; 2043] = include_bytes!("../../../assets/yunaka.png");
 
 struct FeusicEguiApp<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler> {
     player: FeusicPlayerController<M>,
@@ -60,10 +61,24 @@ pub fn run_ui<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler
     preferences: Preferences,
     preferences_handler: PH,
 ) -> Result<(), Box<dyn Error>> {
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::load_from_memory(ICON)
+            .expect("Failed to load icon")
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
+    };
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1024.0, 768.0])
-            .with_transparent(true),
+            .with_transparent(true)
+            .with_icon(IconData {
+                rgba: icon_rgba,
+                width: icon_width,
+                height: icon_height,
+            }),
         ..Default::default()
     };
 
