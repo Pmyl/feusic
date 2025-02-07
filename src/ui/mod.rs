@@ -40,6 +40,7 @@ pub fn run_ui<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler
 #[derive(Deserialize, Serialize, Debug, Default)]
 pub struct Preferences {
     pub last_playlist_path: Option<String>,
+    pub pixels_per_point: Option<f32>,
 }
 
 pub trait PreferencesHandler {

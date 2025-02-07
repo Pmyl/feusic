@@ -1,4 +1,5 @@
-use egui::{IconData, Slider};
+use egui::IconData;
+use youtube_screen::YoutubeScreen;
 
 use crate::core::{
     feusic::loader::MusicLoader, player::controller::FeusicPlayerController,
@@ -11,16 +12,25 @@ use super::{Preferences, PreferencesHandler};
 mod controls;
 mod extras;
 mod playlist;
+mod tabs;
+mod youtube_screen;
 
 const TITLE: &str = "Feusic Player";
-const ICON: &[u8; 2043] = include_bytes!("../../../assets/yunaka.png");
+const ICON: &[u8; 2478] = include_bytes!("../../../assets/yunaka.png");
 
 struct FeusicEguiApp<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler> {
     player: FeusicPlayerController<M>,
     playlist_loader: P,
-    pixel_per_point: f32,
     preferences_handler: PH,
     preferences: Preferences,
+
+    youtube_screen: Option<YoutubeScreen>,
+    screen: FeusicEguiScreen,
+}
+
+enum FeusicEguiScreen {
+    Main,
+    Youtube,
 }
 
 impl<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler> eframe::App
@@ -31,10 +41,36 @@ impl<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler> eframe:
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        ctx.set_pixels_per_point(self.pixel_per_point);
-        egui::TopBottomPanel::top("Size controls").show(ctx, |ui| {
-            ui.add(Slider::new(&mut self.pixel_per_point, 1.0..=4.0));
+        if let Some(pixels_per_point) = self.preferences.pixels_per_point {
+            ctx.set_pixels_per_point(pixels_per_point);
+        }
+
+        egui::TopBottomPanel::top("Tabs").show(ctx, |ui| {
+            if let Some(new_screen) = tabs::render(ui, &self.screen) {
+                self.screen = new_screen;
+
+                match (&self.screen, &self.youtube_screen) {
+                    (FeusicEguiScreen::Youtube, None) => {
+                        self.youtube_screen = Some(YoutubeScreen::new(&self.preferences))
+                    }
+                    _ => {}
+                }
+            }
         });
+
+        match self.screen {
+            FeusicEguiScreen::Main => self.render_main(ctx),
+            FeusicEguiScreen::Youtube => {
+                if let Some(screen) = self.youtube_screen.as_mut() {
+                    screen.render(ctx)
+                }
+            }
+        }
+    }
+}
+
+impl<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler> FeusicEguiApp<M, P, PH> {
+    fn render_main(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("Menu").show(ctx, |ui| {
             extras::render(
                 ui,
@@ -89,9 +125,10 @@ pub fn run_ui<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler
             Ok(Box::new(FeusicEguiApp {
                 player,
                 playlist_loader,
-                pixel_per_point: 2.0,
                 preferences,
                 preferences_handler,
+                youtube_screen: None,
+                screen: FeusicEguiScreen::Main,
             }))
         }),
     )?;

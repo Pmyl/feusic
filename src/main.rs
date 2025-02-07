@@ -8,6 +8,8 @@ use std::error::Error;
 
 use ui::FilePreferencesHandler;
 
+// TODO: use rustube to download music from youtube
+
 fn main() -> Result<(), Box<dyn Error>> {
     let player = FeusicPlayer::new()?;
     let player_controller = FeusicPlayerController::new(player);

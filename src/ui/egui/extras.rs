@@ -10,6 +10,7 @@ use crate::{
     ui::{Preferences, PreferencesHandler},
 };
 
+
 pub(super) fn render<M: MusicLoader>(
     ui: &mut Ui,
     player: &FeusicPlayerController<M>,
@@ -27,6 +28,7 @@ pub(super) fn render<M: MusicLoader>(
         }
 
         if ui.button("Select playlist folder…").clicked() {
+            let was_paused = player.paused();
             player.pause();
 
             if let Some(path) = rfd::FileDialog::new().pick_folder() {
@@ -36,15 +38,21 @@ pub(super) fn render<M: MusicLoader>(
                         preferences_handler.save_preferences(preferences);
 
                         player.set_playlist(playlist);
-                        player.play();
+                        if was_paused {
+                            player.play();
+                        }
                     }
                     Err(e) => {
-                        player.resume();
+                        if was_paused {
+                            player.resume();
+                        }
                         eprintln!("Error loading playlist: {}", e);
                     }
                 }
             } else {
-                player.resume();
+                if was_paused {
+                    player.resume();
+                }
             }
         }
     });
