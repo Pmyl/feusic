@@ -33,7 +33,7 @@ jobs:
         run: powershell Compress-Archive -Path target/release/feusic.exe -DestinationPath feusic_windows.zip
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-artifacts-${{ matrix.os }}
           path: |
