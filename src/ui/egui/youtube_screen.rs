@@ -1,22 +1,21 @@
 use std::{
-    error::Error,
-    fs::remove_file,
-    path::Path,
-    process::Command,
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc,
+    },
     thread,
 };
 
 use egui::{Color32, Key};
 
-use crate::ui::Preferences;
+use crate::{core::youtube::downloader::YoutubeDownloader, ui::Preferences};
 
 pub struct YoutubeScreen {
     url: String,
     downloads: usize,
     download_async_sender: Sender<DownloadResult>,
     download_async_receiver: Receiver<DownloadResult>,
-    download_dir: String,
+    downloader: Arc<YoutubeDownloader>,
 }
 
 enum DownloadResult {
@@ -33,7 +32,9 @@ impl YoutubeScreen {
             downloads: 0,
             download_async_sender,
             download_async_receiver,
-            download_dir: current_dir,
+            downloader: Arc::new(
+                YoutubeDownloader::new(current_dir).expect("current dir to exists"),
+            ),
         }
     }
 
@@ -47,7 +48,10 @@ impl YoutubeScreen {
             let text_lost_focus = ui.text_edit_singleline(&mut self.url).lost_focus();
             let download_clicked = ui.button("Download").clicked();
 
-            ui.label(format!("All songs will be saved in {}", self.download_dir));
+            ui.label(format!(
+                "All songs will be saved in {}",
+                self.downloader.download_dir()
+            ));
 
             if self.downloads > 0 {
                 ui.colored_label(
@@ -78,36 +82,10 @@ impl YoutubeScreen {
                 thread::spawn({
                     let url = self.url.clone();
                     let sender = self.download_async_sender.clone();
-                    let download_dir = self.download_dir.clone();
-                    move || {
-                        let download = || -> Result<String, Box<dyn Error>> {
-                            let video = rusty_ytdl::blocking::Video::new(&url).map_err(|e| {
-                                format!("Cannot get video from url {}. Error {}", url, e)
-                            })?;
-                            let video_path = Path::new(&download_dir).join(filenamify::filenamify(
-                                video.get_info()?.video_details.title,
-                            ));
-                            let audio_path = format!("{}.mp3", video_path.display());
-                            video.download(&video_path)?;
-                            Command::new("ffmpeg")
-                                .arg("-i")
-                                .arg(&video_path)
-                                .arg(&audio_path)
-                                .spawn()
-                                .map_err(|e| format!("Error spawning command. Error: {}", e))?
-                                .wait()
-                                .map_err(|e| {
-                                    format!("Error executing ffmpeg mp3 conversion. Error: {}", e)
-                                })?;
-                            remove_file(video_path)?;
-
-                            return Ok(audio_path);
-                        };
-
-                        match download() {
-                            Ok(path) => sender.send(DownloadResult::Success(path)),
-                            Err(error) => sender.send(DownloadResult::Error(format!("{}", error))),
-                        }
+                    let downloader = self.downloader.clone();
+                    move || match downloader.download_audio_blocking(&url) {
+                        Ok(path) => sender.send(DownloadResult::Success(path)),
+                        Err(error) => sender.send(DownloadResult::Error(format!("{}", error))),
                     }
                 });
             }
