@@ -41,6 +41,7 @@ fn download(args: Vec<String>) -> Result<(), Box<dyn Error>> {
         let mut download_dir = None;
         let mut prefix = None;
         let mut skip = None;
+        let mut numbering = None;
 
         let mut index = 2;
         loop {
@@ -57,6 +58,13 @@ fn download(args: Vec<String>) -> Result<(), Box<dyn Error>> {
                 "--prefix" => {
                     index += 1;
                     prefix = args.get(index).cloned();
+                }
+                "--numbering" => {
+                    index += 1;
+                    numbering = args.get(index).cloned().map(|s| {
+                        s.parse::<bool>()
+                            .map_err(|e| format!("{e} -> When parsing --numbering"))
+                    });
                 }
                 "--skip" => {
                     index += 1;
@@ -77,6 +85,7 @@ fn download(args: Vec<String>) -> Result<(), Box<dyn Error>> {
             download_dir.unwrap_or(std::env::current_dir().unwrap().display().to_string());
         let prefix = prefix.map(|p| format!("{}_", p)).unwrap_or("".to_string());
         let skip = skip.unwrap_or(Ok(0))?;
+        let numbering = numbering.unwrap_or(Ok(true))?;
         println!("Downloading from {} in folder {}", source, download_dir);
         let list_of_links = if source.starts_with("http") {
             vec![source]
@@ -89,10 +98,13 @@ fn download(args: Vec<String>) -> Result<(), Box<dyn Error>> {
         let downloader = YoutubeDownloader::new(download_dir)?;
         let mut count = skip;
         for link in list_of_links.iter().skip(skip) {
-            downloader.download_audio_blocking_with_filename(
-                &link,
-                &format!("{}{:03}_", prefix, count + 1),
-            )?;
+            let number = if numbering {
+                format!("{:03}_", count + 1)
+            } else {
+                String::from("")
+            };
+            downloader
+                .download_audio_blocking_with_filename(&link, &format!("{}{}", prefix, number))?;
             count += 1;
         }
         Ok(())
