@@ -25,4 +25,5 @@ image = "0.25.5"
 rusty_ytdl = { git = "https://github.com/Mithronn/rusty_ytdl.git", features = [
     "blocking",
 ] }
+thin-vec = "0.2.16" # rusty_ytdl dependency with vulnerability in versions < 0.2.16
 filenamify = "0.1.2"
