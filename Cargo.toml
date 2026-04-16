@@ -10,20 +10,24 @@ winit = { version = "0.30.0", default-features = false, features = [
     "x11",
     "rwh_06",
 ] }
-rand = "0.8.5"
+rand = "0.9.3"
 serde = { version = "1.0.217", features = ["derive"] }
 toml = "0.8.19"
-zip = "2.2.2"
-egui = "0.30.0"
-eframe = "0.30.0"
-kira = "0.10.1"
-symphonia = "0.5.4"
+zip = "8.5.1"
+egui = "0.34.1"
+eframe = "0.34.1"
+kira = "0.12.0"
+symphonia = "0.5.5"
 rfd = "0.15.2"
-egui_extras = "0.30.0"
+egui_extras = "0.34.1"
 serde_json = "1.0.135"
 image = "0.25.5"
 rusty_ytdl = { git = "https://github.com/Mithronn/rusty_ytdl.git", features = [
     "blocking",
 ] }
-thin-vec = "0.2.16" # rusty_ytdl dependency with vulnerability in versions < 0.2.16
 filenamify = "0.1.2"
+reqwest = "0.13.2"
+thin-vec = "0.2.16" # rusty_ytdl dependency with vulnerability in versions < 0.2.16
+openssl = "0.10.72" # reqwest dependency with vulnerability in versions < 0.10.72
+tokio = "1.52.0" # dependency with vulnerability in versions < 1.43.1
+bytes = "1.11.1" # tokio dependency with vulnerability in versions < 1.11.1

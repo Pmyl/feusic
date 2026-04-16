@@ -40,12 +40,12 @@ impl<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler> eframe:
         egui::Rgba::TRANSPARENT.to_array()
     }
 
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ctx: &mut egui::Ui, _frame: &mut eframe::Frame) {
         if let Some(pixels_per_point) = self.preferences.pixels_per_point {
             ctx.set_pixels_per_point(pixels_per_point);
         }
 
-        egui::TopBottomPanel::top("Tabs").show(ctx, |ui| {
+        egui::Panel::top("Tabs").show_inside(ctx, |ui| {
             if let Some(new_screen) = tabs::render(ui, &self.screen) {
                 self.screen = new_screen;
 
@@ -70,8 +70,8 @@ impl<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler> eframe:
 }
 
 impl<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler> FeusicEguiApp<M, P, PH> {
-    fn render_main(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("Menu").show(ctx, |ui| {
+    fn render_main(&mut self, ctx: &mut egui::Ui) {
+        egui::Panel::top("Menu").show_inside(ctx, |ui| {
             extras::render(
                 ui,
                 &self.player,
@@ -80,11 +80,11 @@ impl<M: MusicLoader, P: FolderPlaylistLoader<M>, PH: PreferencesHandler> FeusicE
                 &self.preferences_handler,
             );
         });
-        egui::TopBottomPanel::bottom("Player controls").show(ctx, |ui| {
+        egui::Panel::bottom("Player controls").show_inside(ctx, |ui| {
             controls::render(ui, &self.player);
             ui.add_space(5.0);
         });
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(ctx, |ui| {
             ui.heading("Playlist");
             playlist::render(ui, &self.player);
         });

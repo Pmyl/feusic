@@ -38,8 +38,8 @@ impl YoutubeScreen {
         }
     }
 
-    pub fn render(&mut self, ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    pub fn render(&mut self, ctx: &mut egui::Ui) {
+        egui::CentralPanel::default().show_inside(ctx, |ui| {
             ui.heading("Youtube");
 
             ui.label("Insert Url");
