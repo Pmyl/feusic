@@ -6,6 +6,8 @@ use std::{
     time::Duration,
 };
 
+use crate::core::player::PlaylistOrder;
+
 pub struct PlayerSharedData {
     pub(super) feusic_duration_in_secs: AtomicUsize,
     pub(super) feusic_position_in_secs: AtomicUsize,
@@ -14,6 +16,7 @@ pub struct PlayerSharedData {
     pub(super) feusic_index: AtomicUsize,
     pub(super) music_names: RwLock<Vec<String>>,
     pub(super) music_index: AtomicUsize,
+    pub(super) playlist_order: RwLock<PlaylistOrder>,
 }
 
 impl Default for PlayerSharedData {
@@ -26,6 +29,7 @@ impl Default for PlayerSharedData {
             feusic_index: Default::default(),
             music_names: Default::default(),
             music_index: Default::default(),
+            playlist_order: Default::default(),
         }
     }
 }
@@ -51,6 +55,12 @@ impl PlayerSharedData {
 
     pub fn feusic_index(&self) -> usize {
         self.feusic_index.load(Ordering::Relaxed)
+    }
+
+    pub fn playlist_order<'a>(&'a self) -> SharedDataRef<'a, PlaylistOrder> {
+        SharedDataRef {
+            guard: self.playlist_order.read().unwrap(),
+        }
     }
 
     pub fn music_names<'a>(&'a self) -> SharedDataRef<'a, Vec<String>> {

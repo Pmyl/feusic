@@ -15,6 +15,7 @@ pub mod loader;
 
 #[derive(Debug)]
 pub struct Feusic<M> {
+    pub id: usize,
     pub name: String,
     pub musics: Vec<Music<M>>,
     pub first_music: usize,
@@ -55,7 +56,11 @@ struct FeusicConfig {
 }
 
 impl Feusic<FeusicMusicLoader> {
-    pub fn from_feusic_zip_file(file_path: &PathBuf, file: &File) -> Result<Self, Box<dyn Error>> {
+    pub fn from_feusic_zip_file(
+        id: usize,
+        file_path: &PathBuf,
+        file: &File,
+    ) -> Result<Self, Box<dyn Error>> {
         println!("Parsing {:?}", file_path);
         let mut zip = zip::ZipArchive::new(file)?;
 
@@ -73,6 +78,7 @@ impl Feusic<FeusicMusicLoader> {
         let feusic_path = file_path.file_name().unwrap().to_str().unwrap().to_string();
 
         Self::from_feusic(
+            id,
             feusic_path.clone(),
             &musics_names,
             feusic_toml,
@@ -84,7 +90,7 @@ impl Feusic<FeusicMusicLoader> {
         .inspect(|feusic| println!("Loaded musics {:?}", feusic.musics))
     }
 
-    pub fn from_feusic_folder(folder_path: &PathBuf) -> Result<Self, Box<dyn Error>> {
+    pub fn from_feusic_folder(id: usize, folder_path: &PathBuf) -> Result<Self, Box<dyn Error>> {
         println!("Parsing folder {:?}", folder_path);
 
         let mut files = fs::read_dir(folder_path)
@@ -128,19 +134,24 @@ impl Feusic<FeusicMusicLoader> {
             .unwrap()
             .to_string();
 
-        Self::from_feusic(feusic_path, &musics_names, feusic_toml, |music_index, _| {
-            FeusicMusicLoader::FolderFeusic {
+        Self::from_feusic(
+            id,
+            feusic_path,
+            &musics_names,
+            feusic_toml,
+            |music_index, _| FeusicMusicLoader::FolderFeusic {
                 music_path: musics_paths[music_index].clone(),
-            }
-        })
+            },
+        )
         .inspect(|feusic| println!("Loaded musics {:?}", feusic.musics))
     }
 
-    pub fn from_audio_file(file_path: &PathBuf) -> Result<Self, Box<dyn Error>> {
+    pub fn from_audio_file(id: usize, file_path: &PathBuf) -> Result<Self, Box<dyn Error>> {
         println!("Parsing {:?}", file_path);
         let filename = file_path.file_name().unwrap().to_str().unwrap().to_string();
 
         Ok(Self {
+            id,
             first_music: 0,
             looping: Looping::None,
             name: filename.clone(),
@@ -156,6 +167,7 @@ impl Feusic<FeusicMusicLoader> {
     }
 
     fn from_feusic<F: Fn(usize, String) -> FeusicMusicLoader>(
+        id: usize,
         feusic_name: String,
         musics_names: &Vec<String>,
         feusic_toml: String,
@@ -167,6 +179,7 @@ impl Feusic<FeusicMusicLoader> {
         let parsed_timing = ParsedTiming::try_from(&config.timing.as_str())?;
 
         Ok(Self {
+            id,
             name: feusic_name,
             looping: match (config.loop_start, config.loop_end) {
                 (Some(start), Some(end)) => Looping::Partial {

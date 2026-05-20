@@ -17,6 +17,8 @@ pub struct BasicFolderPlaylistLoader;
 
 impl FolderPlaylistLoader<FeusicMusicLoader> for BasicFolderPlaylistLoader {
     fn load(&self, folder_path: &str) -> Result<Vec<Feusic<FeusicMusicLoader>>, Box<dyn Error>> {
+        let mut current_id = 0usize;
+
         let files =
             fs::read_dir(folder_path).map_err(|e| format!("Folder path should exist. {}", e))?;
 
@@ -33,17 +35,33 @@ impl FolderPlaylistLoader<FeusicMusicLoader> for BasicFolderPlaylistLoader {
                 let extension = path.extension()?.to_str()?;
 
                 if extension == "feusic" && path.is_dir() {
-                    return Some(Feusic::from_feusic_folder(&path));
+                    return Some(Feusic::from_feusic_folder(
+                        {
+                            current_id += 1;
+                            current_id
+                        },
+                        &path,
+                    ));
                 }
 
                 match extension {
                     "feusic" => Some(Feusic::from_feusic_zip_file(
+                        {
+                            current_id += 1;
+                            current_id
+                        },
                         &path,
                         &File::open(&path)
                             .inspect_err(|e| eprintln!("Skipping opening file because {}", e))
                             .ok()?,
                     )),
-                    "mp3" | "wav" | "ogg" => Some(Feusic::from_audio_file(&path)),
+                    "mp3" | "wav" | "ogg" => Some(Feusic::from_audio_file(
+                        {
+                            current_id += 1;
+                            current_id
+                        },
+                        &path,
+                    )),
                     _ => return None,
                 }
             })

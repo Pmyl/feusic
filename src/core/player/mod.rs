@@ -7,6 +7,8 @@ use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
 use kira::sound::{FromFileError, PlaybackState};
 use kira::track::{TrackBuilder, TrackHandle};
 use kira::{AudioManager, AudioManagerSettings, Decibels, Easing, StartTime, Tween};
+use rand::rng;
+use rand::seq::SliceRandom;
 use read_seek_source::ReadSeekSource;
 use shared_data::PlayerSharedData;
 use std::error::Error;
@@ -30,6 +32,7 @@ pub struct FeusicPlayer<M: MusicLoader> {
     state: PlayerState,
 
     feusics: Vec<Feusic<M>>,
+    order: PlaylistOrder,
     current_feusic_index: usize,
 
     audio_manager: AudioManager,
@@ -49,6 +52,12 @@ const INSTANT_TWEEN: Tween = Tween {
     start_time: StartTime::Immediate,
 };
 
+#[derive(Debug, Clone)]
+pub enum PlaylistOrder {
+    Alphabetical,
+    Random,
+}
+
 #[derive(Debug)]
 pub(super) enum PlayerAction<M: MusicLoader> {
     Play,
@@ -62,6 +71,7 @@ pub(super) enum PlayerAction<M: MusicLoader> {
     Seek(Duration),
     RemoveLoop,
     SetPlaylist(Vec<Feusic<M>>),
+    SetPlaylistOrder(PlaylistOrder),
 }
 
 impl<M: MusicLoader> FeusicPlayer<M> {
@@ -71,6 +81,7 @@ impl<M: MusicLoader> FeusicPlayer<M> {
 
         Ok(Self {
             feusics: vec![],
+            order: PlaylistOrder::Alphabetical,
             current_music_index: 0,
             current_feusic_index: 0,
             action_sender: action_sender.clone(),
@@ -87,6 +98,35 @@ impl<M: MusicLoader> FeusicPlayer<M> {
     pub fn set_playlist(&mut self, playlist: Vec<Feusic<M>>) {
         self.reset();
         self.feusics = playlist;
+        self.order_playlist();
+    }
+
+    pub fn set_playlist_order(&mut self, playlist_order: PlaylistOrder) {
+        self.order = playlist_order;
+        *self.shared_data.playlist_order.write().unwrap() = self.order.clone();
+        self.reorder_playlist();
+    }
+
+    pub fn reorder_playlist(&mut self) {
+        let current_feusic_id = self.feusics.get(self.current_feusic_index).map(|f| f.id);
+        self.order_playlist();
+        if let Some(id) = current_feusic_id {
+            self.set_current_feusic_index(
+                self.feusics
+                    .iter()
+                    .enumerate()
+                    .find(|(_, f)| f.id == id)
+                    .map(|(i, _)| i)
+                    .unwrap_or(0),
+            );
+        }
+    }
+
+    pub fn order_playlist(&mut self) {
+        match self.order {
+            PlaylistOrder::Alphabetical => self.feusics.sort_by(|f1, f2| f1.name.cmp(&f2.name)),
+            PlaylistOrder::Random => self.feusics.shuffle(&mut rng()),
+        }
         *self.shared_data.feusic_names.write().unwrap() =
             self.feusics.iter().map(|f| f.name.clone()).collect();
     }
@@ -399,6 +439,9 @@ impl<M: MusicLoader> FeusicPlayer<M> {
                 PlayerAction::SetPlaylist(playlist) => {
                     self.set_playlist(playlist);
                 }
+                PlayerAction::SetPlaylistOrder(playlist_order) => {
+                    self.set_playlist_order(playlist_order);
+                }
             }
         }
     }
@@ -416,5 +459,11 @@ impl<M: MusicLoader> FeusicPlayer<M> {
 
     pub fn shared_data(&self) -> Arc<PlayerSharedData> {
         self.shared_data.clone()
+    }
+}
+
+impl Default for PlaylistOrder {
+    fn default() -> Self {
+        PlaylistOrder::Alphabetical
     }
 }
